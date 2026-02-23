@@ -77,14 +77,14 @@
   - [x] 1.8 Configure `electron-vite` or equivalent bundler to compile TypeScript for both main and renderer processes. Verify `npm run dev` launches the Electron window with the HTML page.
   - [x] 1.9 Verify the full build+launch cycle: `npm run dev` opens an Electron window showing the empty layout grid. Add a smoke test script if helpful.
 
-- [ ] 2.0 Rig Data Model
-  - [ ] 2.1 Create `src/renderer/engine/rig.ts`. Define Zod schemas for: `MeshSchema` (vertices as `[number, number][]`, uvs as `[number, number][]`, triangles as `[number, number, number][]`), `DeformerSchema` (discriminated union on `type: "warp" | "rotate"`), `PartSchema` (id, zIndex, texture, mesh, deformers array), `ParameterSchema` (id, range, default, keys), `PhysicsSchema` (target, type, length, damping, paramBinding), `RigSchema` (version, canvas, parts, parameters, physics).
-  - [ ] 2.2 Infer TypeScript types from each Zod schema using `z.infer<typeof Schema>`. Export both schemas and types.
-  - [ ] 2.3 Implement `loadRig(jsonString: string): Rig` — parse JSON string, validate with Zod schema, return typed Rig object. Throw descriptive errors on validation failure.
-  - [ ] 2.4 Implement `saveRig(rig: Rig): string` — serialize Rig object to formatted JSON string.
-  - [ ] 2.5 Add cross-field validation: vertex count must equal UV count per mesh, all triangle indices must be within vertex array bounds, all `paramBinding` references in deformers must match a parameter id.
-  - [ ] 2.6 Create `test/fixtures/test-rig.json` — a hand-crafted valid rig file with at least 2 parts (e.g., a face and an eye), 1 warp deformer, 1 rotate deformer, 2 parameters, and 1 physics entry.
-  - [ ] 2.7 Write `src/renderer/engine/rig.test.ts` — tests: valid JSON parses successfully, invalid JSON (missing field) throws, mismatched vertex/UV count throws, out-of-range triangle index throws, round-trip (load → save → load) produces identical output.
+- [x] 2.0 Rig Data Model
+  - [x] 2.1 Create `src/renderer/engine/rig.ts`. Define Zod schemas for: `MeshSchema` (vertices as `[number, number][]`, uvs as `[number, number][]`, triangles as `[number, number, number][]`), `DeformerSchema` (discriminated union on `type: "warp" | "rotate"`), `PartSchema` (id, zIndex, texture, mesh, deformers array), `ParameterSchema` (id, range, default, keys), `PhysicsSchema` (target, type, length, damping, paramBinding), `RigSchema` (version, canvas, parts, parameters, physics).
+  - [x] 2.2 Infer TypeScript types from each Zod schema using `z.infer<typeof Schema>`. Export both schemas and types.
+  - [x] 2.3 Implement `loadRig(jsonString: string): Rig` — parse JSON string, validate with Zod schema, return typed Rig object. Throw descriptive errors on validation failure.
+  - [x] 2.4 Implement `saveRig(rig: Rig): string` — serialize Rig object to formatted JSON string.
+  - [x] 2.5 Add cross-field validation: vertex count must equal UV count per mesh, all triangle indices must be within vertex array bounds, all `paramBinding` references in deformers must match a parameter id.
+  - [x] 2.6 Create `test/fixtures/test-rig.json` — a hand-crafted valid rig file with at least 2 parts (e.g., a face and an eye), 1 warp deformer, 1 rotate deformer, 2 parameters, and 1 physics entry.
+  - [x] 2.7 Write `src/renderer/engine/rig.test.ts` — tests: valid JSON parses successfully, invalid JSON (missing field) throws, mismatched vertex/UV count throws, out-of-range triangle index throws, round-trip (load → save → load) produces identical output.
 
 - [ ] 3.0 Deformation Engine
   - [ ] 3.1 Create `src/renderer/engine/deformer.ts`. Define a `Deformer` interface with method `apply(vertices: Float32Array, paramValue: number): Float32Array`.

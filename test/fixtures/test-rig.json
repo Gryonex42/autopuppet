@@ -1,0 +1,90 @@
+{
+  "version": "1.0",
+  "canvas": {
+    "width": 1024,
+    "height": 1024
+  },
+  "parts": [
+    {
+      "id": "face",
+      "zIndex": 1,
+      "texture": "textures/face.png",
+      "mesh": {
+        "vertices": [
+          [300, 100], [500, 100], [600, 200], [600, 400],
+          [500, 500], [300, 500], [200, 400], [200, 200],
+          [350, 250], [450, 250], [400, 350]
+        ],
+        "uvs": [
+          [0.25, 0.0], [0.625, 0.0], [0.875, 0.25], [0.875, 0.75],
+          [0.625, 1.0], [0.25, 1.0], [0.125, 0.75], [0.125, 0.25],
+          [0.375, 0.375], [0.5625, 0.375], [0.46875, 0.625]
+        ],
+        "triangles": [
+          [0, 1, 8], [1, 2, 9], [2, 3, 9],
+          [3, 4, 10], [4, 5, 10], [5, 6, 10],
+          [6, 7, 8], [7, 0, 8], [8, 9, 10],
+          [6, 10, 8]
+        ],
+        "deformers": []
+      },
+      "deformers": [
+        {
+          "type": "warp",
+          "paramBinding": "head_angle_x",
+          "gridSize": [4, 4],
+          "bbox": { "x": 200, "y": 100, "w": 400, "h": 400 },
+          "mode": "squeeze_center"
+        }
+      ]
+    },
+    {
+      "id": "eye_left",
+      "zIndex": 2,
+      "texture": "textures/eye_left.png",
+      "mesh": {
+        "vertices": [
+          [310, 220], [370, 210], [380, 260], [340, 280], [300, 260]
+        ],
+        "uvs": [
+          [0.125, 0.143], [0.875, 0.0], [1.0, 0.714], [0.5, 1.0], [0.0, 0.714]
+        ],
+        "triangles": [
+          [0, 1, 4], [1, 2, 3], [1, 3, 4]
+        ],
+        "deformers": []
+      },
+      "deformers": [
+        {
+          "type": "rotate",
+          "paramBinding": "eye_open_left",
+          "origin": [340, 250],
+          "childrenFollow": false
+        }
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "id": "head_angle_x",
+      "range": [-30, 30],
+      "default": 0,
+      "keys": [-30, 0, 30]
+    },
+    {
+      "id": "eye_open_left",
+      "range": [0, 1],
+      "default": 1,
+      "keys": [0, 0.5, 1]
+    }
+  ],
+  "physics": [
+    {
+      "target": "face",
+      "type": "pendulum",
+      "length": 100,
+      "damping": 0.9,
+      "paramBinding": "head_angle_x"
+    }
+  ]
+}
