@@ -5,7 +5,17 @@
 ## Relevant Files
 
 - `src/main/main.ts` - Electron main process entry point, window creation, app lifecycle
-- `src/main/ipc.ts` - IPC handlers for file I/O (open/save dialogs, read/write files)
+- `src/main/ipc.ts` - IPC handlers placeholder (ping/pong for now, expanded in Task 6)
+- `src/preload/index.ts` - Preload script exposing IPC via contextBridge to window.api
+- `src/renderer/index.html` - Electron renderer HTML entry point
+- `src/renderer/main.ts` - Renderer process TypeScript entry point
+- `src/renderer/styles.css` - Application CSS (CSS Grid layout, panel styles, dark theme)
+- `electron.vite.config.ts` - electron-vite build configuration for main/preload/renderer
+- `tsconfig.json` - Base TypeScript configuration (strict, ES2022)
+- `tsconfig.node.json` - TypeScript config for main/preload processes
+- `tsconfig.web.json` - TypeScript config for renderer process (includes DOM libs)
+- `vitest.config.ts` - Vitest test runner configuration
+- `package.json` - Project dependencies and scripts
 - `src/renderer/engine/rig.ts` - Rig data model: Zod schemas, TypeScript interfaces, load/save JSON
 - `src/renderer/engine/rig.test.ts` - Unit tests for rig data model parsing and validation
 - `src/renderer/engine/deformer.ts` - Warp grid and rotation deformer math (Float32Array-based)
@@ -56,16 +66,16 @@
 
 ## Tasks
 
-- [ ] 1.0 Project Scaffold & Build System
-  - [ ] 1.1 Run `npm init` and install core dependencies: `zod`, `pixi.js`, `delaunator`, `electron`, `electron-builder`, `sharp`, `@napi-rs/canvas`. Install dev dependencies: `typescript`, `vitest`, `electron-vite`.
-  - [ ] 1.2 Create `tsconfig.json` with `strict: true`, `target: ES2022`, `module: NodeNext`. Configure separate tsconfig for main process and renderer process if needed by electron-vite.
-  - [ ] 1.3 Create `vitest.config.ts` — configure to find `*.test.ts` files, set up any path aliases matching tsconfig.
-  - [ ] 1.4 Create the full directory structure under `/src` as specified in the PRD: `/src/main/`, `/src/renderer/engine/`, `/src/renderer/ai/`, `/src/renderer/ui/`, `/src/renderer/animation/`, `/test/fixtures/`.
-  - [ ] 1.5 Create `src/main/main.ts` — minimal Electron app that opens a BrowserWindow loading `src/renderer/index.html`. Disable `nodeIntegration`, enable `contextIsolation`, set up preload script if needed.
-  - [ ] 1.6 Create `src/renderer/index.html` — bare HTML page with a `<div id="app">` container and a `<script>` tag loading the renderer entry point. No framework, no JSX.
-  - [ ] 1.7 Create `src/renderer/styles.css` — initial CSS with a CSS Grid layout defining areas for: menu-bar, part-tree, viewport, param-panel, timeline. Use `grid-template-areas` for clarity.
-  - [ ] 1.8 Configure `electron-vite` or equivalent bundler to compile TypeScript for both main and renderer processes. Verify `npm run dev` launches the Electron window with the HTML page.
-  - [ ] 1.9 Verify the full build+launch cycle: `npm run dev` opens an Electron window showing the empty layout grid. Add a smoke test script if helpful.
+- [x] 1.0 Project Scaffold & Build System
+  - [x] 1.1 Run `npm init` and install core dependencies: `zod`, `pixi.js`, `delaunator`, `electron`, `electron-builder`, `sharp`, `@napi-rs/canvas`. Install dev dependencies: `typescript`, `vitest`, `electron-vite`.
+  - [x] 1.2 Create `tsconfig.json` with `strict: true`, `target: ES2022`, `module: NodeNext`. Configure separate tsconfig for main process and renderer process if needed by electron-vite.
+  - [x] 1.3 Create `vitest.config.ts` — configure to find `*.test.ts` files, set up any path aliases matching tsconfig.
+  - [x] 1.4 Create the full directory structure under `/src` as specified in the PRD: `/src/main/`, `/src/renderer/engine/`, `/src/renderer/ai/`, `/src/renderer/ui/`, `/src/renderer/animation/`, `/test/fixtures/`.
+  - [x] 1.5 Create `src/main/main.ts` — minimal Electron app that opens a BrowserWindow loading `src/renderer/index.html`. Disable `nodeIntegration`, enable `contextIsolation`, set up preload script if needed.
+  - [x] 1.6 Create `src/renderer/index.html` — bare HTML page with a `<div id="app">` container and a `<script>` tag loading the renderer entry point. No framework, no JSX.
+  - [x] 1.7 Create `src/renderer/styles.css` — initial CSS with a CSS Grid layout defining areas for: menu-bar, part-tree, viewport, param-panel, timeline. Use `grid-template-areas` for clarity.
+  - [x] 1.8 Configure `electron-vite` or equivalent bundler to compile TypeScript for both main and renderer processes. Verify `npm run dev` launches the Electron window with the HTML page.
+  - [x] 1.9 Verify the full build+launch cycle: `npm run dev` opens an Electron window showing the empty layout grid. Add a smoke test script if helpful.
 
 - [ ] 2.0 Rig Data Model
   - [ ] 2.1 Create `src/renderer/engine/rig.ts`. Define Zod schemas for: `MeshSchema` (vertices as `[number, number][]`, uvs as `[number, number][]`, triangles as `[number, number, number][]`), `DeformerSchema` (discriminated union on `type: "warp" | "rotate"`), `PartSchema` (id, zIndex, texture, mesh, deformers array), `ParameterSchema` (id, range, default, keys), `PhysicsSchema` (target, type, length, damping, paramBinding), `RigSchema` (version, canvas, parts, parameters, physics).

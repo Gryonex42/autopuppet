@@ -1,0 +1,40 @@
+{
+  "name": "ape_autopuppet",
+  "version": "1.0.0",
+  "description": "Live2D clone with AI-powered automatic rigging",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gryonex42/autopuppet.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Gryonex42/autopuppet/issues"
+  },
+  "homepage": "https://github.com/Gryonex42/autopuppet#readme",
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.94",
+    "delaunator": "^5.0.1",
+    "pixi.js": "^8.16.0",
+    "sharp": "^0.34.5",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "electron": "^40.6.0",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

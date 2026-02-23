@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:">
+  <title>AutoPuppet</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="app">
+    <div id="toolbar" class="panel">AutoPuppet</div>
+    <div id="part-tree" class="panel">Parts</div>
+    <div id="viewport" class="panel"></div>
+    <div id="param-panel" class="panel">Parameters</div>
+    <div id="timeline" class="panel">Timeline</div>
+  </div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

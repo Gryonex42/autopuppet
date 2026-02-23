@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "lib": ["ES2022"]
+  },
+  "include": ["src/main/**/*", "src/preload/**/*"]
+}
