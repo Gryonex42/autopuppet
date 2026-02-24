@@ -157,10 +157,14 @@ export class RigRenderer {
   }
 
   /** Load a single image as a preview sprite (no rig). */
-  async loadImagePreview(imagePath: string): Promise<void> {
+  async loadImagePreview(blobUrl: string): Promise<void> {
     this.clear()
-    const { Sprite } = await import('pixi.js')
-    const texture = await Assets.load(imagePath)
+    const { Sprite, ImageSource } = await import('pixi.js')
+    const response = await fetch(blobUrl)
+    const blob = await response.blob()
+    const bitmap = await createImageBitmap(blob)
+    const source = new ImageSource({ resource: bitmap })
+    const texture = new Texture({ source })
     const sprite = new Sprite(texture)
     this.root.addChild(sprite)
   }

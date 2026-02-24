@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:*; script-src 'self' 'unsafe-eval' http://localhost:*; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://localhost:* ws://localhost:*">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:*; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' blob: http://localhost:* https://cdn.jsdelivr.net; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob: http://localhost:* ws://localhost:* https://cdn.jsdelivr.net https://storage.googleapis.com">
   <title>AutoPuppet</title>
   <link rel="stylesheet" href="./styles.css">
 </head>

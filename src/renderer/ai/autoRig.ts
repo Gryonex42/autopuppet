@@ -547,7 +547,6 @@ import {
 } from './segmenter'
 import { generateMesh } from './meshGen'
 import type { BBox as MeshBBox } from './meshGen'
-import { dirname } from 'path'
 
 /**
  * Load a PNG file and decode it into an ImageData object.
@@ -581,7 +580,7 @@ export async function autoRig(
   modelDir?: string,
 ): Promise<{ rig: Rig; idleClip: AnimationClip }> {
   const imageData = await loadImageData(imagePath)
-  const imageDir = dirname(imagePath)
+  const imageDir = imagePath.replace(/\/[^/]+$/, '')
   const outputDir = imageDir + '/parts'
 
   // 1. Detect keypoints

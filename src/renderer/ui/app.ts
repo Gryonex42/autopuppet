@@ -94,12 +94,14 @@ export async function initApp(container: HTMLElement): Promise<{
     if (!filePath) return
     currentImagePath = filePath
 
-    // Load the image as a texture and display as a preview in the viewport
+    // Read the file via IPC and create a blob URL for PixiJS
     try {
-      await renderer.loadImagePreview(filePath)
-    } catch {
-      // Fallback: just record the path
-      console.log('Image selected:', filePath)
+      const buffer = await window.api.readFile(filePath)
+      const blob = new Blob([buffer], { type: 'image/png' })
+      const blobUrl = URL.createObjectURL(blob)
+      await renderer.loadImagePreview(blobUrl)
+    } catch (err) {
+      console.error('Failed to load image preview:', err)
     }
   })
 
