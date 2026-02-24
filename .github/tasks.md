@@ -116,14 +116,14 @@
   - [x] 6.3 Wire the Electron `Menu` API in `main.ts` — create a native menu bar with: File → Open Image, File → Open Rig, File → Save Rig, File → Export, Edit → Undo (placeholder), View → Toggle Part Tree, View → Toggle Timeline, Help → About.
   - [x] 6.4 Test: launch app, use File → Open Image to select a PNG, verify the file path is received in the renderer process via IPC.
 
-- [ ] 7.0 Keypoint Detection
-  - [ ] 7.1 Install `@mediapipe/tasks-vision`. Create `src/renderer/ai/keypoint.ts`.
-  - [ ] 7.2 Implement `detectFaceLandmarks(imageData: ImageData): Promise<Record<string, [number, number]>>` — load MediaPipe Face Landmarker WASM model, run detection, extract key points: face center, left eye, right eye, mouth center, nose tip, left ear, right ear. Return as named coordinate map.
-  - [ ] 7.3 Implement `detectBodyJoints(imageData: ImageData): Promise<Record<string, [number, number]>>` — load MediaPipe Pose Landmarker WASM model, run detection, extract: left/right shoulder, left/right elbow, left/right wrist, torso center. Return as named coordinate map.
-  - [ ] 7.4 Implement `estimateKeypointsHeuristic(imageRgba: ImageData): Record<string, [number, number]>` — fallback when MediaPipe fails on illustrated characters. Extract bounding box from alpha channel, then estimate keypoint positions using standard body proportions (head = top 20%, face center at 12% from top, eyes at face ± 8% width, body = middle 40%, arms = side 20% strips).
-  - [ ] 7.5 Implement `detectKeypoints(imageData: ImageData): Promise<Record<string, [number, number]>>` — orchestrator that tries MediaPipe first, falls back to heuristic if MediaPipe returns zero/low-confidence landmarks.
-  - [ ] 7.6 Create `models/README.md` with download instructions for MediaPipe WASM model files and where to place them in the project.
-  - [ ] 7.7 Write `src/renderer/ai/keypoint.test.ts` — test heuristic keypoint estimation: given a known bounding box, verify face center, eye positions, body center are at expected proportional offsets. Test fallback triggers when MediaPipe returns empty results.
+- [x] 7.0 Keypoint Detection
+  - [x] 7.1 Install `@mediapipe/tasks-vision`. Create `src/renderer/ai/keypoint.ts`.
+  - [x] 7.2 Implement `detectFaceLandmarks(imageData: ImageData): Promise<Record<string, [number, number]>>` — load MediaPipe Face Landmarker WASM model, run detection, extract key points: face center, left eye, right eye, mouth center, nose tip, left ear, right ear. Return as named coordinate map.
+  - [x] 7.3 Implement `detectBodyJoints(imageData: ImageData): Promise<Record<string, [number, number]>>` — load MediaPipe Pose Landmarker WASM model, run detection, extract: left/right shoulder, left/right elbow, left/right wrist, torso center. Return as named coordinate map.
+  - [x] 7.4 Implement `estimateKeypointsHeuristic(imageRgba: ImageData): Record<string, [number, number]>` — fallback when MediaPipe fails on illustrated characters. Extract bounding box from alpha channel, then estimate keypoint positions using standard body proportions (head = top 20%, face center at 12% from top, eyes at face ± 8% width, body = middle 40%, arms = side 20% strips).
+  - [x] 7.5 Implement `detectKeypoints(imageData: ImageData): Promise<Record<string, [number, number]>>` — orchestrator that tries MediaPipe first, falls back to heuristic if MediaPipe returns zero/low-confidence landmarks.
+  - [x] 7.6 Create `models/README.md` with download instructions for MediaPipe WASM model files and where to place them in the project.
+  - [x] 7.7 Write `src/renderer/ai/keypoint.test.ts` — test heuristic keypoint estimation: given a known bounding box, verify face center, eye positions, body center are at expected proportional offsets. Test fallback triggers when MediaPipe returns empty results.
 
 - [ ] 8.0 SAM ONNX Part Segmentation
   - [ ] 8.1 Install `onnxruntime-node`. Create `src/renderer/ai/segmenter.ts`.

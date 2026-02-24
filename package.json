@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/Gryonex42/autopuppet#readme",
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.32",
     "@napi-rs/canvas": "^0.1.94",
     "delaunator": "^5.0.1",
     "pixi.js": "^8.16.0",
