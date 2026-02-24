@@ -103,11 +103,11 @@
   - [x] 4.6 Implement part selection: on pointer click, raycast against part meshes (check which mesh contains the clicked point via triangle hit-testing). Emit a `partSelected` event. Draw a wireframe overlay on the selected part using `PIXI.Graphics`.
   - [x] 4.7 Create a manual test: load `test-rig.json` with a simple test PNG texture, render it, verify the character displays. Add a few hardcoded parameter changes and confirm deformation is visible.
 
-- [ ] 5.0 EventBus & Application State
-  - [ ] 5.1 Create `src/renderer/ui/events.ts`. Implement a generic typed `EventBus<T>` class where `T` is a record of event names to payload types. Methods: `on(event, callback)`, `off(event, callback)`, `emit(event, data)`. Keep it under 30 lines.
-  - [ ] 5.2 Define the `AppEvents` type: `{ paramChanged: { paramId: string, value: number }, partSelected: { partId: string | null }, rigLoaded: { rig: Rig }, animationTick: { time: number }, rigUpdated: void }`.
-  - [ ] 5.3 Create `AppState` class that holds: the current `Rig | null`, current parameter values as `Map<string, number>`, selected part ID, animation playback state. Expose getters and setters that emit events via the EventBus on change.
-  - [ ] 5.4 Write `src/renderer/ui/events.test.ts` — tests: subscribe receives emitted events, unsubscribe stops receiving, multiple listeners all fire, emitting unknown event does nothing.
+- [x] 5.0 EventBus & Application State
+  - [x] 5.1 Create `src/renderer/ui/events.ts`. Implement a generic typed `EventBus<T>` class where `T` is a record of event names to payload types. Methods: `on(event, callback)`, `off(event, callback)`, `emit(event, data)`. Keep it under 30 lines.
+  - [x] 5.2 Define the `AppEvents` type: `{ paramChanged: { paramId: string, value: number }, partSelected: { partId: string | null }, rigLoaded: { rig: Rig }, animationTick: { time: number }, rigUpdated: void }`.
+  - [x] 5.3 Create `AppState` class that holds: the current `Rig | null`, current parameter values as `Map<string, number>`, selected part ID, animation playback state. Expose getters and setters that emit events via the EventBus on change.
+  - [x] 5.4 Write `src/renderer/ui/events.test.ts` — tests: subscribe receives emitted events, unsubscribe stops receiving, multiple listeners all fire, emitting unknown event does nothing.
 
 - [ ] 6.0 Electron IPC & File Operations
   - [ ] 6.1 Create `src/main/ipc.ts`. Register IPC handlers for: `dialog:openFile` (shows native file open dialog, returns file path), `dialog:saveFile` (shows native save dialog), `fs:readFile` (reads file at path, returns buffer), `fs:writeFile` (writes buffer to path), `fs:readDir` (lists directory contents).
