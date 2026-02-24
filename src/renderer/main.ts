@@ -109,6 +109,47 @@ async function main(): Promise<void> {
     console.log('Part selected:', partId)
   }
 
+  // Wire menu actions from Electron native menu
+  window.api.onMenuAction(async (action) => {
+    switch (action) {
+      case 'openImage': {
+        const filePath = await window.api.openFile({
+          filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+        })
+        if (filePath) {
+          console.log('Opened image:', filePath)
+        }
+        break
+      }
+      case 'openRig': {
+        const filePath = await window.api.openFile({
+          filters: [{ name: 'Rig Files', extensions: ['json'] }],
+        })
+        if (filePath) {
+          console.log('Opened rig:', filePath)
+          const buffer = await window.api.readFile(filePath)
+          const text = new TextDecoder().decode(buffer)
+          const newRig = loadRig(text)
+          await renderer.loadRig(newRig, '')
+          console.log('Rig loaded from file')
+        }
+        break
+      }
+      case 'saveRig':
+      case 'saveRigAs': {
+        const filePath = await window.api.saveFile({
+          filters: [{ name: 'Rig Files', extensions: ['json'] }],
+        })
+        if (filePath) {
+          console.log('Save rig to:', filePath)
+        }
+        break
+      }
+      default:
+        console.log('Menu action:', action)
+    }
+  })
+
   console.log('AutoPuppet renderer loaded — test rig displayed')
 }
 

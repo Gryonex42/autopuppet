@@ -34,6 +34,7 @@
 - `src/renderer/ai/autoRig.test.ts` - Tests for auto-rig pipeline (PNG → rig JSON end-to-end)
 - `src/renderer/ui/events.ts` - Typed EventBus class for state change propagation
 - `src/renderer/ui/events.test.ts` - Tests for EventBus subscribe/emit/unsubscribe
+- `src/renderer/env.d.ts` - Type declarations for window.api (ElectronApi) available in renderer
 - `src/renderer/ui/app.ts` - Root UI shell: CSS Grid layout, panel management, menu wiring
 - `src/renderer/ui/viewport.ts` - PixiJS canvas mount, pan/zoom, part selection highlighting
 - `src/renderer/ui/paramPanel.ts` - Parameter slider panel (DOM range inputs, grouped by category)
@@ -109,11 +110,11 @@
   - [x] 5.3 Create `AppState` class that holds: the current `Rig | null`, current parameter values as `Map<string, number>`, selected part ID, animation playback state. Expose getters and setters that emit events via the EventBus on change.
   - [x] 5.4 Write `src/renderer/ui/events.test.ts` — tests: subscribe receives emitted events, unsubscribe stops receiving, multiple listeners all fire, emitting unknown event does nothing.
 
-- [ ] 6.0 Electron IPC & File Operations
-  - [ ] 6.1 Create `src/main/ipc.ts`. Register IPC handlers for: `dialog:openFile` (shows native file open dialog, returns file path), `dialog:saveFile` (shows native save dialog), `fs:readFile` (reads file at path, returns buffer), `fs:writeFile` (writes buffer to path), `fs:readDir` (lists directory contents).
-  - [ ] 6.2 Create a preload script that exposes these IPC channels to the renderer via `contextBridge.exposeInMainWorld`. The renderer should access them through a `window.api` object, not via direct `ipcRenderer` calls.
-  - [ ] 6.3 Wire the Electron `Menu` API in `main.ts` — create a native menu bar with: File → Open Image, File → Open Rig, File → Save Rig, File → Export, Edit → Undo (placeholder), View → Toggle Part Tree, View → Toggle Timeline, Help → About.
-  - [ ] 6.4 Test: launch app, use File → Open Image to select a PNG, verify the file path is received in the renderer process via IPC.
+- [x] 6.0 Electron IPC & File Operations
+  - [x] 6.1 Create `src/main/ipc.ts`. Register IPC handlers for: `dialog:openFile` (shows native file open dialog, returns file path), `dialog:saveFile` (shows native save dialog), `fs:readFile` (reads file at path, returns buffer), `fs:writeFile` (writes buffer to path), `fs:readDir` (lists directory contents).
+  - [x] 6.2 Create a preload script that exposes these IPC channels to the renderer via `contextBridge.exposeInMainWorld`. The renderer should access them through a `window.api` object, not via direct `ipcRenderer` calls.
+  - [x] 6.3 Wire the Electron `Menu` API in `main.ts` — create a native menu bar with: File → Open Image, File → Open Rig, File → Save Rig, File → Export, Edit → Undo (placeholder), View → Toggle Part Tree, View → Toggle Timeline, Help → About.
+  - [x] 6.4 Test: launch app, use File → Open Image to select a PNG, verify the file path is received in the renderer process via IPC.
 
 - [ ] 7.0 Keypoint Detection
   - [ ] 7.1 Install `@mediapipe/tasks-vision`. Create `src/renderer/ai/keypoint.ts`.
