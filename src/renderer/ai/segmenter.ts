@@ -1,16 +1,15 @@
 /**
  * SAM ONNX Part Segmentation
  *
- * High-level segmentation pipeline that runs in the renderer process.
- * Image preprocessing and mask post-processing happen here (pure JS).
- * Actual ONNX inference runs in the main process via IPC.
+ * Preprocessing and postprocessing run in the renderer.
+ * ONNX inference runs in the main process via onnxruntime-node (IPC).
  */
 
 import type { KeypointMap } from './keypoint'
 
-/** Opaque handle to a loaded SAM model session in the main process */
+/** SAM session — holds a main-process session ID and cached state */
 export interface SAMSession {
-  /** Session ID used to reference the loaded model across IPC */
+  /** Main-process session ID (opaque string) */
   sessionId: string
   /** Cached image embedding (set after encodeImage) */
   embedding: Float32Array | null
@@ -74,34 +73,33 @@ function createImageData(width: number, height: number): ImageData {
 }
 
 /**
- * Load SAM encoder + decoder ONNX models in the main process.
- * Returns a session handle for subsequent inference calls.
+ * Load SAM encoder + decoder ONNX models via IPC (main process, onnxruntime-node).
  */
 export async function loadSAMModel(
   encoderPath: string,
   decoderPath: string,
 ): Promise<SAMSession> {
+  console.log('SAM: loading models via IPC (onnxruntime-node)')
   const sessionId = await window.api.samLoadModel(encoderPath, decoderPath)
+  console.log(`SAM: session ${sessionId} ready`)
   return { sessionId, embedding: null, imageSize: null }
 }
 
 /**
- * Preprocess image and encode it through the SAM encoder.
+ * Preprocess image and encode it through the SAM encoder (via IPC).
  * Stores the embedding in the session for reuse across multiple prompts.
  */
 export async function encodeImage(
   session: SAMSession,
   imageData: ImageData,
 ): Promise<Float32Array> {
-  // Preprocess: resize to 1024x1024, normalize to [0, 1], convert to CHW float tensor
-  const inputTensor = preprocessImage(imageData)
+  const inputData = preprocessImage(imageData)
 
-  // Run encoder in main process via IPC
-  const tensorBuffer = new ArrayBuffer(inputTensor.byteLength)
-  new Float32Array(tensorBuffer).set(inputTensor)
-  const embeddingBuffer = await window.api.samEncode(session.sessionId, tensorBuffer)
-  const embedding = new Float32Array(embeddingBuffer)
+  // Send preprocessed tensor to main process for inference
+  const inputBuf = inputData.buffer as ArrayBuffer
+  const resultBuf = await window.api.samEncode(session.sessionId, inputBuf)
 
+  const embedding = new Float32Array(resultBuf)
   session.embedding = embedding
   session.imageSize = { width: imageData.width, height: imageData.height }
 
@@ -109,7 +107,7 @@ export async function encodeImage(
 }
 
 /**
- * Run SAM decoder with point/box prompts to produce a binary mask.
+ * Run SAM decoder with point/box prompts to produce a binary mask (via IPC).
  */
 export async function segmentWithPrompt(
   session: SAMSession,
@@ -138,20 +136,55 @@ export async function segmentWithPrompt(
       ] as [number, number, number, number])
     : undefined
 
-  // Run decoder in main process via IPC
-  const embBuf = new ArrayBuffer(embedding.byteLength)
-  new Float32Array(embBuf).set(embedding)
-  const maskBuffer = await window.api.samDecode(
+  const numPoints = scaledPoints.length + (scaledBox ? 2 : 0)
+  const coordsData = new Float32Array(numPoints * 2)
+  const labelsData = new Float32Array(numPoints)
+
+  let idx = 0
+  for (let i = 0; i < scaledPoints.length; i++) {
+    coordsData[idx * 2] = scaledPoints[i][0]
+    coordsData[idx * 2 + 1] = scaledPoints[i][1]
+    labelsData[idx] = labels[i]
+    idx++
+  }
+
+  if (scaledBox) {
+    coordsData[idx * 2] = scaledBox[0]
+    coordsData[idx * 2 + 1] = scaledBox[1]
+    labelsData[idx] = 2
+    idx++
+    coordsData[idx * 2] = scaledBox[2]
+    coordsData[idx * 2 + 1] = scaledBox[3]
+    labelsData[idx] = 3
+  }
+
+  // Send to main process for inference
+  const embeddingBuf = embedding.buffer as ArrayBuffer
+  const coordsBuf = coordsData.buffer as ArrayBuffer
+  const labelsBuf = labelsData.buffer as ArrayBuffer
+
+  const result = await window.api.samDecode(
     session.sessionId,
-    embBuf,
-    scaledPoints,
-    labels,
-    scaledBox,
+    embeddingBuf,
+    coordsBuf,
+    labelsBuf,
+    numPoints,
   )
 
-  // Convert the raw mask (1024x1024 float) to a binary ImageData at original resolution
-  const maskFloat = new Float32Array(maskBuffer)
-  return postprocessMask(maskFloat, width, height)
+  // Pick the mask with highest IoU score
+  const iouData = new Float32Array(result.iou)
+  let bestIdx = 0
+  for (let i = 1; i < iouData.length; i++) {
+    if (iouData[i] > iouData[bestIdx]) bestIdx = i
+  }
+
+  const allMasks = new Float32Array(result.masks)
+  const maskH = result.maskHeight
+  const maskW = result.maskWidth
+  const maskSize = maskH * maskW
+  const bestMask = allMasks.slice(bestIdx * maskSize, (bestIdx + 1) * maskSize)
+
+  return postprocessMask(bestMask, maskW, maskH, width, height)
 }
 
 /**
@@ -289,16 +322,17 @@ export async function exportPartTextures(
 // --- Internal helpers ---
 
 /**
- * Resize image to 1024x1024 and convert to CHW float tensor normalized to [0,1].
- * Returns a Float32Array of shape [1, 3, 1024, 1024].
+ * Resize image to 1024x1024 and convert to HWC float tensor in [0, 255] range.
+ * Returns a Float32Array of shape [1024, 1024, 3].
+ *
+ * The samexporter SAM encoder expects HWC layout with pixel values in [0, 255].
+ * ImageNet normalization (mean/std) is baked into the ONNX graph.
  */
 function preprocessImage(imageData: ImageData): Float32Array {
   // Use OffscreenCanvas to resize
   const canvas = new OffscreenCanvas(SAM_INPUT_SIZE, SAM_INPUT_SIZE)
   const ctx = canvas.getContext('2d')!
 
-  // Create ImageBitmap from the input data
-  // We need to draw the ImageData onto a temp canvas first, then resize
   const srcCanvas = new OffscreenCanvas(imageData.width, imageData.height)
   const srcCtx = srcCanvas.getContext('2d')!
   srcCtx.putImageData(imageData, 0, 0)
@@ -306,39 +340,37 @@ function preprocessImage(imageData: ImageData): Float32Array {
   ctx.drawImage(srcCanvas, 0, 0, SAM_INPUT_SIZE, SAM_INPUT_SIZE)
   const resized = ctx.getImageData(0, 0, SAM_INPUT_SIZE, SAM_INPUT_SIZE)
 
-  // Convert RGBA HWC → RGB CHW float, normalized to [0, 1]
+  // Convert RGBA HWC → RGB HWC float, values in [0, 255]
   const pixelCount = SAM_INPUT_SIZE * SAM_INPUT_SIZE
   const tensor = new Float32Array(3 * pixelCount)
 
   for (let i = 0; i < pixelCount; i++) {
-    tensor[i] = resized.data[i * 4] / 255 // R channel
-    tensor[pixelCount + i] = resized.data[i * 4 + 1] / 255 // G channel
-    tensor[2 * pixelCount + i] = resized.data[i * 4 + 2] / 255 // B channel
+    tensor[i * 3] = resized.data[i * 4]         // R
+    tensor[i * 3 + 1] = resized.data[i * 4 + 1] // G
+    tensor[i * 3 + 2] = resized.data[i * 4 + 2] // B
   }
 
   return tensor
 }
 
 /**
- * Convert a 1024x1024 float mask from the SAM decoder to a binary ImageData
- * at the target resolution.
+ * Convert a float mask from the SAM decoder to a binary ImageData
+ * at the target resolution. The mask can be any size (depends on orig_im_size).
  */
 function postprocessMask(
   maskFloat: Float32Array,
+  maskWidth: number,
+  maskHeight: number,
   targetWidth: number,
   targetHeight: number,
 ): ImageData {
-  // Resize from 256x256 (SAM decoder output) to target size
-  // SAM decoder actually outputs 256x256 masks
-  const decoderSize = 256
   const out = createImageData(targetWidth, targetHeight)
 
   for (let y = 0; y < targetHeight; y++) {
     for (let x = 0; x < targetWidth; x++) {
-      // Map target pixel to decoder mask pixel
-      const srcX = Math.floor((x / targetWidth) * decoderSize)
-      const srcY = Math.floor((y / targetHeight) * decoderSize)
-      const srcIdx = srcY * decoderSize + srcX
+      const srcX = Math.floor((x / targetWidth) * maskWidth)
+      const srcY = Math.floor((y / targetHeight) * maskHeight)
+      const srcIdx = srcY * maskWidth + srcX
 
       // Threshold at 0 (SAM outputs logits; positive = foreground)
       const isForeground = maskFloat[srcIdx] > 0

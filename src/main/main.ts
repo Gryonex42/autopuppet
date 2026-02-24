@@ -99,6 +99,14 @@ function createWindow(): void {
     }
   })
 
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('Renderer process gone:', details.reason, details.exitCode)
+  })
+
+  mainWindow.on('closed', () => {
+    console.log('Main window closed')
+  })
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
@@ -110,6 +118,17 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
+
+// Enable WebGPU for onnxruntime-web
+app.commandLine.appendSwitch('enable-unsafe-webgpu')
+
+// Log crashes so we can diagnose app closures
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason)
+})
 
 app.whenReady().then(() => {
   registerIpcHandlers()

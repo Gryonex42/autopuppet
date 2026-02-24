@@ -19,19 +19,22 @@ export interface ElectronApi {
   readDir(dirPath: string): Promise<DirEntry[]>
   /** Receive menu actions from the main process */
   onMenuAction(callback: (action: string) => void): () => void
-  /** SAM ONNX model operations */
-  samLoadModel(encoderPath: string, decoderPath: string): Promise<string>
-  samEncode(sessionId: string, inputBuffer: ArrayBuffer): Promise<ArrayBuffer>
-  samDecode(
-    sessionId: string,
-    embeddingBuffer: ArrayBuffer,
-    points: [number, number][],
-    labels: number[],
-    box?: [number, number, number, number],
-  ): Promise<ArrayBuffer>
-  samUnloadModel(sessionId: string): Promise<void>
   /** Write RGBA pixel data as PNG using sharp */
   writeRgbaPng(filePath: string, rgbaBuffer: ArrayBuffer, width: number, height: number): Promise<void>
+  /** SAM: load encoder + decoder models, returns session ID */
+  samLoadModel(encoderPath: string, decoderPath: string): Promise<string>
+  /** SAM: encode image tensor, returns embedding ArrayBuffer */
+  samEncode(sessionId: string, inputData: ArrayBuffer): Promise<ArrayBuffer>
+  /** SAM: decode with prompts, returns masks + IoU */
+  samDecode(
+    sessionId: string,
+    embeddingData: ArrayBuffer,
+    coordsData: ArrayBuffer,
+    labelsData: ArrayBuffer,
+    numPoints: number,
+  ): Promise<{ masks: ArrayBuffer; iou: ArrayBuffer; numMasks: number; maskHeight: number; maskWidth: number }>
+  /** SAM: release session resources */
+  samUnloadModel(sessionId: string): Promise<void>
 }
 
 const api: ElectronApi = {
@@ -48,16 +51,16 @@ const api: ElectronApi = {
     ipcRenderer.on('menu:action', handler)
     return () => ipcRenderer.removeListener('menu:action', handler)
   },
-  samLoadModel: (encoderPath, decoderPath) =>
-    ipcRenderer.invoke('sam:loadModel', encoderPath, decoderPath),
-  samEncode: (sessionId, inputBuffer) =>
-    ipcRenderer.invoke('sam:encode', sessionId, inputBuffer),
-  samDecode: (sessionId, embeddingBuffer, points, labels, box) =>
-    ipcRenderer.invoke('sam:decode', sessionId, embeddingBuffer, points, labels, box),
-  samUnloadModel: (sessionId) =>
-    ipcRenderer.invoke('sam:unloadModel', sessionId),
   writeRgbaPng: (filePath, rgbaBuffer, width, height) =>
     ipcRenderer.invoke('image:writeRgbaPng', filePath, rgbaBuffer, width, height),
+  samLoadModel: (encoderPath, decoderPath) =>
+    ipcRenderer.invoke('sam:loadModel', encoderPath, decoderPath),
+  samEncode: (sessionId, inputData) =>
+    ipcRenderer.invoke('sam:encode', sessionId, inputData),
+  samDecode: (sessionId, embeddingData, coordsData, labelsData, numPoints) =>
+    ipcRenderer.invoke('sam:decode', sessionId, embeddingData, coordsData, labelsData, numPoints),
+  samUnloadModel: (sessionId) =>
+    ipcRenderer.invoke('sam:unloadModel', sessionId),
 }
 
 contextBridge.exposeInMainWorld('api', api)

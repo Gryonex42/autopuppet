@@ -6,7 +6,10 @@ export default defineConfig({
     build: {
       outDir: 'dist/main',
       rollupOptions: {
-        input: 'src/main/main.ts',
+        input: {
+          main: 'src/main/main.ts',
+          'sam-worker': 'src/main/sam-worker.ts',
+        },
       },
     },
   },

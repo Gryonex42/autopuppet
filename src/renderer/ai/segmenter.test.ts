@@ -224,7 +224,7 @@ describe('postprocessMask', () => {
       }
     }
 
-    const result = postprocessMask(maskFloat, 256, 256)
+    const result = postprocessMask(maskFloat, 256, 256, 256, 256)
 
     // Left half should be opaque
     expect(result.data[0 * 4 + 3]).toBe(255)
@@ -239,7 +239,7 @@ describe('postprocessMask', () => {
     const decoderSize = 256
     const maskFloat = new Float32Array(decoderSize * decoderSize).fill(1.0) // all foreground
 
-    const result = postprocessMask(maskFloat, 512, 512)
+    const result = postprocessMask(maskFloat, 256, 256, 512, 512)
 
     expect(result.width).toBe(512)
     expect(result.height).toBe(512)
@@ -251,7 +251,7 @@ describe('postprocessMask', () => {
     const decoderSize = 256
     const maskFloat = new Float32Array(decoderSize * decoderSize).fill(-1.0) // all background
 
-    const result = postprocessMask(maskFloat, 800, 600)
+    const result = postprocessMask(maskFloat, 256, 256, 800, 600)
 
     expect(result.width).toBe(800)
     expect(result.height).toBe(600)
@@ -262,7 +262,7 @@ describe('postprocessMask', () => {
     const decoderSize = 256
     const maskFloat = new Float32Array(decoderSize * decoderSize).fill(0)
 
-    const result = postprocessMask(maskFloat, 10, 10)
+    const result = postprocessMask(maskFloat, 256, 256, 10, 10)
     expect(countOpaque(result)).toBe(0)
   })
 })
