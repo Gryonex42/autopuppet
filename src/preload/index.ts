@@ -21,6 +21,15 @@ export interface ElectronApi {
   onMenuAction(callback: (action: string) => void): () => void
   /** Write RGBA pixel data as PNG using sharp */
   writeRgbaPng(filePath: string, rgbaBuffer: ArrayBuffer, width: number, height: number): Promise<void>
+  /** Load the LaMa inpainting model */
+  inpaintLoadModel(modelPath: string): Promise<void>
+  /** Run LaMa inpainting: fill masked regions of the image */
+  inpaintRun(
+    imageRgba: ArrayBuffer, width: number, height: number,
+    maskAlpha: ArrayBuffer, maskWidth: number, maskHeight: number,
+  ): Promise<{ imageRgba: ArrayBuffer; width: number; height: number }>
+  /** Unload the LaMa model and kill the worker */
+  inpaintUnloadModel(): Promise<void>
 }
 
 const api: ElectronApi = {
@@ -39,6 +48,12 @@ const api: ElectronApi = {
   },
   writeRgbaPng: (filePath, rgbaBuffer, width, height) =>
     ipcRenderer.invoke('image:writeRgbaPng', filePath, rgbaBuffer, width, height),
+  inpaintLoadModel: (modelPath) =>
+    ipcRenderer.invoke('inpaint:loadModel', modelPath),
+  inpaintRun: (imageRgba, width, height, maskAlpha, maskWidth, maskHeight) =>
+    ipcRenderer.invoke('inpaint:run', imageRgba, width, height, maskAlpha, maskWidth, maskHeight),
+  inpaintUnloadModel: () =>
+    ipcRenderer.invoke('inpaint:unloadModel'),
 }
 
 contextBridge.exposeInMainWorld('api', api)

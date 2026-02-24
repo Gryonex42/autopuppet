@@ -4,6 +4,7 @@ import {
   PART_PRIORITY,
   getMaskBbox,
   KEYPOINT_TO_PART,
+  colourFillHole,
 } from './segmenter'
 
 /**
@@ -251,5 +252,104 @@ describe('PART_PRIORITY', () => {
     const faceIdx = PART_PRIORITY.indexOf('face')
     const bodyIdx = PART_PRIORITY.indexOf('body')
     expect(faceIdx).toBeLessThan(bodyIdx)
+  })
+})
+
+// --- colourFillHole ---
+
+describe('colourFillHole', () => {
+  /**
+   * Create a coloured image buffer with uniform RGBA.
+   */
+  function makeImage(
+    width: number,
+    height: number,
+    r: number,
+    g: number,
+    b: number,
+    a: number,
+  ): Uint8ClampedArray {
+    const data = new Uint8ClampedArray(width * height * 4)
+    for (let i = 0; i < width * height; i++) {
+      data[i * 4] = r
+      data[i * 4 + 1] = g
+      data[i * 4 + 2] = b
+      data[i * 4 + 3] = a
+    }
+    return data
+  }
+
+  it('fills hole pixels with average border colour', () => {
+    const w = 20
+    const h = 20
+    // Red image
+    const baseLayer = makeImage(w, h, 200, 50, 50, 255)
+
+    // Mask: a small square in the center
+    const mask = makeRectMask(w, h, { x: 8, y: 8, w: 4, h: 4 })
+
+    // Zero out the hole area so we can verify it gets filled
+    for (let y = 8; y < 12; y++) {
+      for (let x = 8; x < 12; x++) {
+        const idx = (y * w + x) * 4
+        baseLayer[idx] = 0
+        baseLayer[idx + 1] = 0
+        baseLayer[idx + 2] = 0
+        baseLayer[idx + 3] = 0
+      }
+    }
+
+    colourFillHole(baseLayer, w, h, mask)
+
+    // Hole pixels should now be filled with ~(200, 50, 50, 255)
+    const centerIdx = (10 * w + 10) * 4
+    expect(baseLayer[centerIdx]).toBe(200)
+    expect(baseLayer[centerIdx + 1]).toBe(50)
+    expect(baseLayer[centerIdx + 2]).toBe(50)
+    expect(baseLayer[centerIdx + 3]).toBe(255)
+  })
+
+  it('does nothing for an empty mask', () => {
+    const w = 10
+    const h = 10
+    const baseLayer = makeImage(w, h, 100, 100, 100, 255)
+    const original = new Uint8ClampedArray(baseLayer)
+
+    const emptyMask = makeMask(w, h, [])
+    colourFillHole(baseLayer, w, h, emptyMask)
+
+    // Should be unchanged
+    expect(baseLayer).toEqual(original)
+  })
+
+  it('produces a filled region (no transparent gaps in hole)', () => {
+    const w = 30
+    const h = 30
+    // Green image with a hole punched out
+    const baseLayer = makeImage(w, h, 0, 180, 0, 255)
+
+    // Large central mask
+    const mask = makeRectMask(w, h, { x: 5, y: 5, w: 20, h: 20 })
+
+    // Clear the hole
+    for (let y = 5; y < 25; y++) {
+      for (let x = 5; x < 25; x++) {
+        const idx = (y * w + x) * 4
+        baseLayer[idx] = 0
+        baseLayer[idx + 1] = 0
+        baseLayer[idx + 2] = 0
+        baseLayer[idx + 3] = 0
+      }
+    }
+
+    colourFillHole(baseLayer, w, h, mask)
+
+    // Every mask pixel should now be opaque (no transparent gaps)
+    for (let y = 5; y < 25; y++) {
+      for (let x = 5; x < 25; x++) {
+        const idx = (y * w + x) * 4
+        expect(baseLayer[idx + 3]).toBeGreaterThan(0)
+      }
+    }
   })
 })

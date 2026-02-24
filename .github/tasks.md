@@ -54,6 +54,7 @@
 - `models/README.md` - Instructions for downloading SAM ONNX and MediaPipe WASM models
 - `test/fixtures/test-character.png` - Sample character illustration for integration tests
 - `test/fixtures/test-rig.json` - Hand-crafted rig JSON for renderer/deformer tests
+- `src/main/inpaint-worker.ts` - LaMa ONNX inpainting child-process worker
 - `package.json` - Project dependencies and scripts
 - `tsconfig.json` - TypeScript configuration
 - `electron-builder.yml` - Electron packaging configuration
@@ -193,14 +194,14 @@
   - [x] 13A.7 Update `models/README.md` — remove SAM download instructions. Keep MediaPipe model instructions.
   - [x] 13A.8 Run full test suite, verify all tests pass. Commit.
 
-- [ ] 13B LaMa Inpainting for Occluded Regions
-  - [ ] 13B.1 Research LaMa (Large Mask Inpainting) ONNX availability. Find or export a LaMa model to ONNX format (~50MB). Add download instructions to `models/README.md`.
-  - [ ] 13B.2 Create an inpainting worker (`src/main/inpaint-worker.ts`) using `onnxruntime-node` in a forked child process. Accept an image (RGBA) and a binary mask (region to inpaint), run LaMa inference, return the inpainted image.
-  - [ ] 13B.3 Add IPC handlers in `sam-ipc.ts` (or a new `inpaint-ipc.ts`): `inpaint:loadModel`, `inpaint:run`, `inpaint:unloadModel`. Expose in preload and `env.d.ts`.
-  - [ ] 13B.4 Modify `exportPartTextures` in `segmenter.ts`: after extracting each part's pixels from the source image, inpaint the hole left behind on a running "base layer" copy. This way, parts that are drawn underneath (lower z-order) show plausible content where higher-order parts overlap them, instead of blank/skin-colored patches.
-  - [ ] 13B.5 Add a fallback for when the LaMa model isn't available — use simple colour-fill (sample border pixels of the hole) so the pipeline still works without the model, just at lower quality.
-  - [ ] 13B.6 Write tests: verify inpainting worker loads model and returns an image of correct dimensions. Verify fallback produces a filled region when model is absent. Verify the pipeline end-to-end produces parts with no transparent holes in lower layers.
-  - [ ] 13B.7 Run full test suite, verify all tests pass. Commit.
+- [x] 13B LaMa Inpainting for Occluded Regions
+  - [x] 13B.1 Research LaMa (Large Mask Inpainting) ONNX availability. Find or export a LaMa model to ONNX format (~50MB). Add download instructions to `models/README.md`.
+  - [x] 13B.2 Create an inpainting worker (`src/main/inpaint-worker.ts`) using `onnxruntime-node` in a forked child process. Accept an image (RGBA) and a binary mask (region to inpaint), run LaMa inference, return the inpainted image.
+  - [x] 13B.3 Add IPC handlers in `sam-ipc.ts` (or a new `inpaint-ipc.ts`): `inpaint:loadModel`, `inpaint:run`, `inpaint:unloadModel`. Expose in preload and `env.d.ts`.
+  - [x] 13B.4 Modify `exportPartTextures` in `segmenter.ts`: after extracting each part's pixels from the source image, inpaint the hole left behind on a running "base layer" copy. This way, parts that are drawn underneath (lower z-order) show plausible content where higher-order parts overlap them, instead of blank/skin-colored patches.
+  - [x] 13B.5 Add a fallback for when the LaMa model isn't available — use simple colour-fill (sample border pixels of the hole) so the pipeline still works without the model, just at lower quality.
+  - [x] 13B.6 Write tests: verify inpainting worker loads model and returns an image of correct dimensions. Verify fallback produces a filled region when model is absent. Verify the pipeline end-to-end produces parts with no transparent holes in lower layers.
+  - [x] 13B.7 Run full test suite, verify all tests pass. Commit.
 
 - [ ] 13C Anime-Specific Segmentation (AnimeSeg)
   - [ ] 13C.1 Research anime segmentation models: AnimeSeg, illustration2vec segmentation head, or similar. These are trained on anime/illustration styles and understand stylized features (large eyes, sharp hair spikes). Find pre-trained weights and assess ONNX export feasibility.

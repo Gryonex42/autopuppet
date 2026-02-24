@@ -314,50 +314,197 @@ export function resolveOverlaps(
 /**
  * Export part textures: crop original image by each mask, save as RGBA PNGs.
  * Uses sharp in the main process via IPC.
+ *
+ * Parts are extracted in z-order (highest z first = PART_PRIORITY order).
+ * After extracting each part, the hole left behind is inpainted on a running
+ * "base layer" copy so lower-z parts show plausible content underneath.
+ *
+ * If the LaMa model is loaded, uses AI inpainting. Otherwise falls back to
+ * simple colour-fill (samples border pixels around the hole).
  */
 export async function exportPartTextures(
   originalImage: ImageData,
   masks: Map<string, ImageData>,
   outputDir: string,
+  options?: { useInpainting?: boolean },
 ): Promise<Map<string, PartTextureInfo>> {
   const result = new Map<string, PartTextureInfo>()
+  const { width, height } = originalImage
+  const useInpainting = options?.useInpainting ?? false
 
-  for (const [partName, mask] of masks) {
-    // Find tight bounding box of the mask
+  // Working copy of the image — gets inpainted as we extract parts
+  const baseLayer = new Uint8ClampedArray(originalImage.data)
+
+  // Process parts in priority order (highest-z first) so that
+  // higher-z parts are extracted from the clean original, and
+  // lower-z parts benefit from inpainting beneath them.
+  const orderedParts = PART_PRIORITY.filter((name) => masks.has(name))
+  for (const name of masks.keys()) {
+    if (!orderedParts.includes(name)) orderedParts.push(name)
+  }
+
+  for (const partName of orderedParts) {
+    const mask = masks.get(partName)!
     const bbox = getMaskBbox(mask)
-    if (!bbox) continue // empty mask
+    if (!bbox) continue
 
     const { x, y, w, h } = bbox
 
-    // Extract the cropped RGBA pixels
+    // Extract the cropped RGBA pixels from the current base layer
     const cropped = new Uint8ClampedArray(w * h * 4)
     for (let row = 0; row < h; row++) {
       for (let col = 0; col < w; col++) {
         const srcX = x + col
         const srcY = y + row
-        const srcIdx = (srcY * originalImage.width + srcX) * 4
+        const srcIdx = (srcY * width + srcX) * 4
         const dstIdx = (row * w + col) * 4
 
-        // Only include pixels where the mask is active
         const maskIdx = (srcY * mask.width + srcX) * 4
         if (mask.data[maskIdx + 3] > 127) {
-          cropped[dstIdx] = originalImage.data[srcIdx]
-          cropped[dstIdx + 1] = originalImage.data[srcIdx + 1]
-          cropped[dstIdx + 2] = originalImage.data[srcIdx + 2]
-          cropped[dstIdx + 3] = originalImage.data[srcIdx + 3]
+          cropped[dstIdx] = baseLayer[srcIdx]
+          cropped[dstIdx + 1] = baseLayer[srcIdx + 1]
+          cropped[dstIdx + 2] = baseLayer[srcIdx + 2]
+          cropped[dstIdx + 3] = baseLayer[srcIdx + 3]
         }
-        // else leave transparent (0,0,0,0)
       }
     }
 
-    // Write via IPC (sharp in main process)
+    // Write the part texture
     const filePath = `${outputDir}/${partName}.png`
     await window.api.writeRgbaPng(filePath, cropped.buffer, w, h)
-
     result.set(partName, { path: filePath, offset: [x, y] })
+
+    // Inpaint the hole this part left on the base layer
+    if (useInpainting) {
+      try {
+        const inpainted = await inpaintHole(baseLayer, width, height, mask)
+        baseLayer.set(inpainted)
+      } catch {
+        // Fall back to colour-fill if inpainting fails
+        colourFillHole(baseLayer, width, height, mask)
+      }
+    } else {
+      colourFillHole(baseLayer, width, height, mask)
+    }
   }
 
   return result
+}
+
+/**
+ * Inpaint a hole in the base layer using LaMa via IPC.
+ * The mask defines which pixels to inpaint (alpha > 127 = hole).
+ */
+async function inpaintHole(
+  baseLayer: Uint8ClampedArray,
+  width: number,
+  height: number,
+  mask: ImageData,
+): Promise<Uint8ClampedArray> {
+  // Build a full-image RGBA buffer from the base layer
+  const imageRgba = new Uint8ClampedArray(baseLayer)
+
+  // Build a mask RGBA buffer (alpha channel used by the worker)
+  const maskRgba = new Uint8ClampedArray(mask.data)
+
+  const result = await window.api.inpaintRun(
+    imageRgba.buffer, width, height,
+    maskRgba.buffer, mask.width, mask.height,
+  )
+
+  // Only apply inpainted pixels where the mask is active
+  const inpainted = new Uint8ClampedArray(baseLayer)
+  const outRgba = new Uint8ClampedArray(result.imageRgba)
+  for (let i = 0; i < width * height; i++) {
+    if (mask.data[i * 4 + 3] > 127) {
+      inpainted[i * 4] = outRgba[i * 4]
+      inpainted[i * 4 + 1] = outRgba[i * 4 + 1]
+      inpainted[i * 4 + 2] = outRgba[i * 4 + 2]
+      inpainted[i * 4 + 3] = outRgba[i * 4 + 3]
+    }
+  }
+  return inpainted
+}
+
+/**
+ * Simple colour-fill fallback: for each hole pixel, sample the average colour
+ * of non-hole pixels within a small border ring around the hole, then fill
+ * the hole with that colour. Works without any AI model.
+ */
+export function colourFillHole(
+  baseLayer: Uint8ClampedArray,
+  width: number,
+  height: number,
+  mask: ImageData,
+): void {
+  // Find the bounding box of the mask to limit our search area
+  const bbox = getMaskBbox(mask)
+  if (!bbox) return
+
+  const borderRadius = 3
+
+  // Expand bbox by borderRadius and clamp to image bounds
+  const x0 = Math.max(0, bbox.x - borderRadius)
+  const y0 = Math.max(0, bbox.y - borderRadius)
+  const x1 = Math.min(width - 1, bbox.x + bbox.w - 1 + borderRadius)
+  const y1 = Math.min(height - 1, bbox.y + bbox.h - 1 + borderRadius)
+
+  // Collect border pixel colours: pixels NOT in the mask that are
+  // adjacent (within borderRadius) to a mask pixel
+  let sumR = 0, sumG = 0, sumB = 0, sumA = 0, count = 0
+
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const idx = (y * width + x) * 4
+      const maskIdx = (y * mask.width + x) * 4
+
+      // Skip pixels inside the mask
+      if (y < mask.height && x < mask.width && mask.data[maskIdx + 3] > 127) continue
+
+      // Check if this pixel is near a mask pixel
+      let nearMask = false
+      for (let dy = -borderRadius; dy <= borderRadius && !nearMask; dy++) {
+        for (let dx = -borderRadius; dx <= borderRadius && !nearMask; dx++) {
+          const ny = y + dy
+          const nx = x + dx
+          if (ny >= 0 && ny < mask.height && nx >= 0 && nx < mask.width) {
+            if (mask.data[(ny * mask.width + nx) * 4 + 3] > 127) {
+              nearMask = true
+            }
+          }
+        }
+      }
+
+      if (nearMask && baseLayer[idx + 3] > 10) {
+        sumR += baseLayer[idx]
+        sumG += baseLayer[idx + 1]
+        sumB += baseLayer[idx + 2]
+        sumA += baseLayer[idx + 3]
+        count++
+      }
+    }
+  }
+
+  if (count === 0) return // No border pixels found
+
+  const avgR = Math.round(sumR / count)
+  const avgG = Math.round(sumG / count)
+  const avgB = Math.round(sumB / count)
+  const avgA = Math.round(sumA / count)
+
+  // Fill hole pixels with the average border colour
+  for (let y = bbox.y; y < bbox.y + bbox.h; y++) {
+    for (let x = bbox.x; x < bbox.x + bbox.w; x++) {
+      const maskIdx = (y * mask.width + x) * 4
+      if (mask.data[maskIdx + 3] > 127) {
+        const idx = (y * width + x) * 4
+        baseLayer[idx] = avgR
+        baseLayer[idx + 1] = avgG
+        baseLayer[idx + 2] = avgB
+        baseLayer[idx + 3] = avgA
+      }
+    }
+  }
 }
 
 /**

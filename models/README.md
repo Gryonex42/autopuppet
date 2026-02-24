@@ -28,12 +28,38 @@ curl -L -o models/pose_landmarker_lite.task \
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
 ```
 
+## LaMa Inpainting Model
+
+LaMa (Large Mask Inpainting) fills in masked regions of an image with plausible content. Used during part extraction to inpaint holes left by higher-z-order parts on lower layers.
+
+The model is optional — the pipeline falls back to colour-fill when it's absent.
+
+### Download
+
+```bash
+curl -L -o models/big-lama.onnx \
+  "https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx"
+```
+
+### Model Details
+
+| Property | Value |
+|----------|-------|
+| Source | [saic-mdal/lama](https://github.com/advimman/lama) (Samsung AI Center) |
+| ONNX export | [Carve/LaMa-ONNX](https://huggingface.co/Carve/LaMa-ONNX) (FP32, public, no auth) |
+| Size | ~208 MB |
+| Input image | `[1, 3, H, W]` float32, RGB, normalized to [0, 1] |
+| Input mask | `[1, 1, H, W]` float32, 0 = keep, 1 = inpaint |
+| Output | `[1, 3, H, W]` float32, inpainted RGB image, [0, 1] |
+| Resolution | H and W must be multiples of 8 |
+
 ## File Sizes
 
 | Model | Size |
 |-------|------|
 | face_landmarker.task | ~5 MB |
 | pose_landmarker_lite.task | ~6 MB |
+| big-lama.onnx | ~208 MB |
 
 ## .gitignore
 
@@ -41,4 +67,5 @@ Ensure model files are excluded from version control:
 
 ```
 models/*.task
+models/*.onnx
 ```

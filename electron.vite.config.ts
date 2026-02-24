@@ -8,7 +8,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           main: 'src/main/main.ts',
-          'sam-worker': 'src/main/sam-worker.ts',
+          'inpaint-worker': 'src/main/inpaint-worker.ts',
         },
       },
     },
