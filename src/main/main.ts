@@ -20,6 +20,10 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+    // Open devtools in dev mode
+    if (process.env.ELECTRON_RENDERER_URL) {
+      mainWindow?.webContents.openDevTools()
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
