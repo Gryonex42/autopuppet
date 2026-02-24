@@ -119,9 +119,6 @@ function createWindow(): void {
   }
 }
 
-// Enable WebGPU for onnxruntime-web
-app.commandLine.appendSwitch('enable-unsafe-webgpu')
-
 // Log crashes so we can diagnose app closures
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err)

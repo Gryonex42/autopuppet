@@ -565,7 +565,7 @@ async function loadImageData(imagePath: string): Promise<ImageData> {
  *
  * Takes a character PNG path and produces a complete Rig:
  * 1. Detect keypoints (face, body)
- * 2. Segment into parts via SAM
+ * 2. Segment into parts via keypoint geometry
  * 3. Export part textures
  * 4. Generate meshes per part
  * 5. Build hierarchy, apply rules, generate keyframes

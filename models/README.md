@@ -28,31 +28,12 @@ curl -L -o models/pose_landmarker_lite.task \
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
 ```
 
-## SAM ONNX Models (Task 8)
-
-Used for part segmentation. Download the SAM ViT-B ONNX models packaged as a zip from HuggingFace:
-
-```bash
-cd models
-curl -L -o sam_vit_b_01ec64.zip \
-  "https://huggingface.co/vietanhdev/segment-anything-onnx-models/resolve/main/sam_vit_b_01ec64.zip?download=true"
-unzip sam_vit_b_01ec64.zip
-rm sam_vit_b_01ec64.zip config.yaml
-```
-
-This extracts two files:
-
-- `sam_vit_b_01ec64.encoder.onnx` (~359 MB) — image encoder
-- `sam_vit_b_01ec64.decoder.onnx` (~17 MB) — mask decoder
-
 ## File Sizes
 
 | Model | Size |
 |-------|------|
 | face_landmarker.task | ~5 MB |
 | pose_landmarker_lite.task | ~6 MB |
-| sam_vit_b_01ec64.encoder.onnx | ~359 MB |
-| sam_vit_b_01ec64.decoder.onnx | ~17 MB |
 
 ## .gitignore
 
@@ -60,5 +41,4 @@ Ensure model files are excluded from version control:
 
 ```
 models/*.task
-models/*.onnx
 ```

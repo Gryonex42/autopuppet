@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   resolveOverlaps,
   PART_PRIORITY,
-  postprocessMask,
   getMaskBbox,
   KEYPOINT_TO_PART,
 } from './segmenter'
@@ -208,62 +207,6 @@ describe('getMaskBbox', () => {
     const bbox = getMaskBbox(mask)
 
     expect(bbox).toEqual({ x: 0, y: 0, w: 10, h: 10 })
-  })
-})
-
-// --- postprocessMask ---
-
-describe('postprocessMask', () => {
-  it('thresholds at 0 (positive = foreground)', () => {
-    // Create a 256x256 mask with left half positive, right half negative
-    const decoderSize = 256
-    const maskFloat = new Float32Array(decoderSize * decoderSize)
-    for (let y = 0; y < decoderSize; y++) {
-      for (let x = 0; x < decoderSize; x++) {
-        maskFloat[y * decoderSize + x] = x < 128 ? 1.0 : -1.0
-      }
-    }
-
-    const result = postprocessMask(maskFloat, 256, 256, 256, 256)
-
-    // Left half should be opaque
-    expect(result.data[0 * 4 + 3]).toBe(255)
-    expect(result.data[(127) * 4 + 3]).toBe(255)
-
-    // Right half should be transparent
-    expect(result.data[(128) * 4 + 3]).toBe(0)
-    expect(result.data[(255) * 4 + 3]).toBe(0)
-  })
-
-  it('resizes from 256x256 to target dimensions', () => {
-    const decoderSize = 256
-    const maskFloat = new Float32Array(decoderSize * decoderSize).fill(1.0) // all foreground
-
-    const result = postprocessMask(maskFloat, 256, 256, 512, 512)
-
-    expect(result.width).toBe(512)
-    expect(result.height).toBe(512)
-    // All pixels should be opaque
-    expect(countOpaque(result)).toBe(512 * 512)
-  })
-
-  it('produces correct output size for non-square targets', () => {
-    const decoderSize = 256
-    const maskFloat = new Float32Array(decoderSize * decoderSize).fill(-1.0) // all background
-
-    const result = postprocessMask(maskFloat, 256, 256, 800, 600)
-
-    expect(result.width).toBe(800)
-    expect(result.height).toBe(600)
-    expect(countOpaque(result)).toBe(0)
-  })
-
-  it('values at exactly 0 are treated as background', () => {
-    const decoderSize = 256
-    const maskFloat = new Float32Array(decoderSize * decoderSize).fill(0)
-
-    const result = postprocessMask(maskFloat, 256, 256, 10, 10)
-    expect(countOpaque(result)).toBe(0)
   })
 })
 

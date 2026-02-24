@@ -1,26 +1,12 @@
 /**
  * Part Segmentation
  *
- * Two modes:
- * - Keypoint-geometry segmentation (default): elliptical masks derived from
- *   inter-keypoint distances, intersected with the original alpha channel.
- *   Fast, deterministic, works well for illustrated/anime characters.
- * - SAM-based segmentation (optional): ONNX inference for photographic images.
- *   Preprocessing and postprocessing run in the renderer; inference runs in
- *   the main process via onnxruntime-node (IPC).
+ * Keypoint-geometry segmentation: elliptical masks derived from
+ * inter-keypoint distances, intersected with the original alpha channel.
+ * Fast, deterministic, works well for illustrated/anime characters.
  */
 
 import type { KeypointMap } from './keypoint'
-
-/** SAM session — holds a main-process session ID and cached state */
-export interface SAMSession {
-  /** Main-process session ID (opaque string) */
-  sessionId: string
-  /** Cached image embedding (set after encodeImage) */
-  embedding: Float32Array | null
-  /** Original image dimensions used during encoding */
-  imageSize: { width: number; height: number } | null
-}
 
 /** Result of exporting a part texture */
 export interface PartTextureInfo {
@@ -57,9 +43,6 @@ export const PART_PRIORITY: string[] = [
   'body',
 ]
 
-/** SAM input image size (fixed by model architecture) */
-const SAM_INPUT_SIZE = 1024
-
 /**
  * Create an ImageData-like object. Works in both browser (uses native constructor)
  * and Node test environment (creates a plain object).
@@ -75,121 +58,6 @@ function createImageData(width: number, height: number): ImageData {
     height,
     colorSpace: 'srgb',
   } as ImageData
-}
-
-/**
- * Load SAM encoder + decoder ONNX models via IPC (main process, onnxruntime-node).
- */
-export async function loadSAMModel(
-  encoderPath: string,
-  decoderPath: string,
-): Promise<SAMSession> {
-  console.log('SAM: loading models via IPC (onnxruntime-node)')
-  const sessionId = await window.api.samLoadModel(encoderPath, decoderPath)
-  console.log(`SAM: session ${sessionId} ready`)
-  return { sessionId, embedding: null, imageSize: null }
-}
-
-/**
- * Preprocess image and encode it through the SAM encoder (via IPC).
- * Stores the embedding in the session for reuse across multiple prompts.
- */
-export async function encodeImage(
-  session: SAMSession,
-  imageData: ImageData,
-): Promise<Float32Array> {
-  const inputData = preprocessImage(imageData)
-
-  // Send preprocessed tensor to main process for inference
-  const inputBuf = inputData.buffer as ArrayBuffer
-  const resultBuf = await window.api.samEncode(session.sessionId, inputBuf)
-
-  const embedding = new Float32Array(resultBuf)
-  session.embedding = embedding
-  session.imageSize = { width: imageData.width, height: imageData.height }
-
-  return embedding
-}
-
-/**
- * Run SAM decoder with point/box prompts to produce a binary mask (via IPC).
- */
-export async function segmentWithPrompt(
-  session: SAMSession,
-  embedding: Float32Array,
-  points: [number, number][],
-  labels: number[],
-  box?: [number, number, number, number],
-): Promise<ImageData> {
-  if (!session.imageSize) {
-    throw new Error('Image not encoded yet — call encodeImage first')
-  }
-
-  // Scale point coordinates from original image space to SAM input space (1024x1024)
-  const { width, height } = session.imageSize
-  const scaledPoints = points.map(([x, y]): [number, number] => [
-    (x / width) * SAM_INPUT_SIZE,
-    (y / height) * SAM_INPUT_SIZE,
-  ])
-
-  const scaledBox = box
-    ? ([
-        (box[0] / width) * SAM_INPUT_SIZE,
-        (box[1] / height) * SAM_INPUT_SIZE,
-        (box[2] / width) * SAM_INPUT_SIZE,
-        (box[3] / height) * SAM_INPUT_SIZE,
-      ] as [number, number, number, number])
-    : undefined
-
-  const numPoints = scaledPoints.length + (scaledBox ? 2 : 0)
-  const coordsData = new Float32Array(numPoints * 2)
-  const labelsData = new Float32Array(numPoints)
-
-  let idx = 0
-  for (let i = 0; i < scaledPoints.length; i++) {
-    coordsData[idx * 2] = scaledPoints[i][0]
-    coordsData[idx * 2 + 1] = scaledPoints[i][1]
-    labelsData[idx] = labels[i]
-    idx++
-  }
-
-  if (scaledBox) {
-    coordsData[idx * 2] = scaledBox[0]
-    coordsData[idx * 2 + 1] = scaledBox[1]
-    labelsData[idx] = 2
-    idx++
-    coordsData[idx * 2] = scaledBox[2]
-    coordsData[idx * 2 + 1] = scaledBox[3]
-    labelsData[idx] = 3
-  }
-
-  // Send to main process for inference
-  const embeddingBuf = embedding.buffer as ArrayBuffer
-  const coordsBuf = coordsData.buffer as ArrayBuffer
-  const labelsBuf = labelsData.buffer as ArrayBuffer
-
-  const result = await window.api.samDecode(
-    session.sessionId,
-    embeddingBuf,
-    coordsBuf,
-    labelsBuf,
-    numPoints,
-  )
-
-  // Pick the mask with highest IoU score
-  const iouData = new Float32Array(result.iou)
-  let bestIdx = 0
-  for (let i = 1; i < iouData.length; i++) {
-    if (iouData[i] > iouData[bestIdx]) bestIdx = i
-  }
-
-  const allMasks = new Float32Array(result.masks)
-  const maskH = result.maskHeight
-  const maskW = result.maskWidth
-  const maskSize = maskH * maskW
-  const bestMask = allMasks.slice(bestIdx * maskSize, (bestIdx + 1) * maskSize)
-
-  return postprocessMask(bestMask, maskW, maskH, width, height)
 }
 
 /** Euclidean distance between two points */
@@ -385,196 +253,6 @@ export function segmentByKeypoints(
   return masks
 }
 
-// --- SAM-based segmentation (optional, for photographic images) ---
-
-/** Euclidean distance between two points */
-// (dist already defined above for geometry segmentation)
-
-/** Clamp a bounding box to image dimensions */
-function clampBox(
-  box: [number, number, number, number],
-  width: number,
-  height: number,
-): [number, number, number, number] {
-  return [
-    Math.max(0, box[0]),
-    Math.max(0, box[1]),
-    Math.min(width, box[2]),
-    Math.min(height, box[3]),
-  ]
-}
-
-/**
- * Estimate a bounding box and negative points for each part based on keypoint geometry.
- * Box sizes are derived from inter-keypoint distances so they scale with the character.
- */
-function estimatePartPrompts(
-  keypoints: KeypointMap,
-  width: number,
-  height: number,
-): Map<string, { box: [number, number, number, number]; negPoints: [number, number][] }> {
-  const prompts = new Map<string, { box: [number, number, number, number]; negPoints: [number, number][] }>()
-
-  // Compute scale references from keypoints
-  const eyeL = keypoints.eye_left
-  const eyeR = keypoints.eye_right
-  const interEye = eyeL && eyeR ? dist(eyeL, eyeR) : width * 0.15
-  const faceCenter = keypoints.face_center
-  const mouth = keypoints.mouth_center
-  const nose = keypoints.nose_tip
-
-  // Face height estimate (face_center to mouth, doubled for forehead)
-  const faceH = faceCenter && mouth ? dist(faceCenter, mouth) * 2.5 : interEye * 2.5
-
-  for (const [keypointName, coords] of Object.entries(keypoints)) {
-    const partName = KEYPOINT_TO_PART[keypointName]
-    if (!partName) continue
-
-    const [cx, cy] = coords
-    let box: [number, number, number, number]
-    const negPoints: [number, number][] = []
-
-    switch (partName) {
-      case 'eye_left':
-      case 'eye_right': {
-        // Tight box around each eye, sized relative to inter-eye distance
-        const ew = interEye * 0.45
-        const eh = interEye * 0.3
-        box = [cx - ew, cy - eh, cx + ew, cy + eh]
-        // Negative point at the other eye and at face center
-        if (partName === 'eye_left' && eyeR) negPoints.push(eyeR)
-        if (partName === 'eye_right' && eyeL) negPoints.push(eyeL)
-        if (faceCenter) negPoints.push(faceCenter)
-        break
-      }
-
-      case 'mouth': {
-        const mw = interEye * 0.5
-        const mh = interEye * 0.35
-        box = [cx - mw, cy - mh, cx + mw, cy + mh]
-        if (nose) negPoints.push(nose)
-        if (faceCenter) negPoints.push(faceCenter)
-        break
-      }
-
-      case 'nose': {
-        const nw = interEye * 0.3
-        const nh = interEye * 0.35
-        box = [cx - nw, cy - nh, cx + nw, cy + nh]
-        if (mouth) negPoints.push(mouth)
-        if (eyeL) negPoints.push(eyeL)
-        if (eyeR) negPoints.push(eyeR)
-        break
-      }
-
-      case 'face': {
-        // Full face box from ear to ear, forehead to below chin
-        const fw = interEye * 1.4
-        box = [cx - fw, cy - faceH * 0.5, cx + fw, cy + faceH * 0.5]
-        // Negative points at body/shoulders to separate face from body
-        if (keypoints.torso_center) negPoints.push(keypoints.torso_center)
-        if (keypoints.shoulder_left) negPoints.push(keypoints.shoulder_left)
-        if (keypoints.shoulder_right) negPoints.push(keypoints.shoulder_right)
-        break
-      }
-
-      case 'ear_left':
-      case 'ear_right': {
-        const earW = interEye * 0.35
-        const earH = interEye * 0.5
-        box = [cx - earW, cy - earH, cx + earW, cy + earH]
-        if (faceCenter) negPoints.push(faceCenter)
-        break
-      }
-
-      case 'body': {
-        // Body: wide box from shoulders down
-        const sL = keypoints.shoulder_left
-        const sR = keypoints.shoulder_right
-        const shoulderW = sL && sR ? dist(sL, sR) : interEye * 3
-        const bw = shoulderW * 0.7
-        box = [cx - bw, cy - shoulderW * 0.3, cx + bw, height]
-        if (faceCenter) negPoints.push(faceCenter)
-        break
-      }
-
-      case 'arm_upper_left':
-      case 'arm_upper_right': {
-        const armW = interEye * 0.6
-        const armH = interEye * 1.5
-        box = [cx - armW, cy - armW * 0.3, cx + armW, cy + armH]
-        if (keypoints.torso_center) negPoints.push(keypoints.torso_center)
-        break
-      }
-
-      default: {
-        // Generic fallback: moderate box around the keypoint
-        const s = interEye * 0.5
-        box = [cx - s, cy - s, cx + s, cy + s]
-        break
-      }
-    }
-
-    prompts.set(partName, {
-      box: clampBox(box, width, height),
-      negPoints,
-    })
-  }
-
-  return prompts
-}
-
-/**
- * Segment a character image into named parts using keypoint-guided SAM prompts.
- * Uses bounding boxes and negative points for precise part isolation.
- */
-export async function segmentCharacter(
-  session: SAMSession,
-  imageData: ImageData,
-  keypoints: KeypointMap,
-): Promise<Map<string, ImageData>> {
-  // Encode image once
-  const embedding = await encodeImage(session, imageData)
-
-  const masks = new Map<string, ImageData>()
-
-  // Estimate per-part bounding boxes and negative points from keypoint geometry
-  const partPrompts = estimatePartPrompts(keypoints, imageData.width, imageData.height)
-
-  for (const [keypointName, coords] of Object.entries(keypoints)) {
-    const partName = KEYPOINT_TO_PART[keypointName]
-    if (!partName) continue
-
-    const prompt = partPrompts.get(partName)
-    if (!prompt) continue
-
-    // Foreground point at the keypoint + negative points at neighboring parts
-    const points: [number, number][] = [coords, ...prompt.negPoints]
-    const labels: number[] = [1, ...prompt.negPoints.map(() => 0)]
-
-    const mask = await segmentWithPrompt(session, embedding, points, labels, prompt.box)
-    masks.set(partName, mask)
-  }
-
-  // Intersect all masks with the original alpha channel — only keep pixels
-  // that are actually visible in the source image (removes white background leaks)
-  for (const [partName, mask] of masks) {
-    const data = mask.data
-    for (let i = 0; i < mask.width * mask.height; i++) {
-      const srcAlpha = imageData.data[i * 4 + 3]
-      if (srcAlpha < 10) {
-        // Transparent in original → transparent in mask
-        data[i * 4] = 0
-        data[i * 4 + 1] = 0
-        data[i * 4 + 2] = 0
-        data[i * 4 + 3] = 0
-      }
-    }
-  }
-
-  return masks
-}
-
 /**
  * Resolve overlapping masks by priority.
  * Higher-priority parts win contested pixels. No pixel belongs to two masks.
@@ -682,79 +360,6 @@ export async function exportPartTextures(
   return result
 }
 
-// --- Internal helpers ---
-
-/**
- * Resize image to 1024x1024 and convert to HWC float tensor in [0, 255] range.
- * Returns a Float32Array of shape [1024, 1024, 3].
- *
- * The samexporter SAM encoder expects HWC layout with pixel values in [0, 255].
- * ImageNet normalization (mean/std) is baked into the ONNX graph.
- *
- * Transparent pixels are composited onto a white background before encoding,
- * so SAM sees a clean separation between the character and background.
- */
-function preprocessImage(imageData: ImageData): Float32Array {
-  // Use OffscreenCanvas to resize, compositing onto white background
-  const canvas = new OffscreenCanvas(SAM_INPUT_SIZE, SAM_INPUT_SIZE)
-  const ctx = canvas.getContext('2d')!
-
-  // Fill with white first — transparent areas become white, not black
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, SAM_INPUT_SIZE, SAM_INPUT_SIZE)
-
-  const srcCanvas = new OffscreenCanvas(imageData.width, imageData.height)
-  const srcCtx = srcCanvas.getContext('2d')!
-  srcCtx.putImageData(imageData, 0, 0)
-
-  ctx.drawImage(srcCanvas, 0, 0, SAM_INPUT_SIZE, SAM_INPUT_SIZE)
-  const resized = ctx.getImageData(0, 0, SAM_INPUT_SIZE, SAM_INPUT_SIZE)
-
-  // Convert RGBA HWC → RGB HWC float, values in [0, 255]
-  const pixelCount = SAM_INPUT_SIZE * SAM_INPUT_SIZE
-  const tensor = new Float32Array(3 * pixelCount)
-
-  for (let i = 0; i < pixelCount; i++) {
-    tensor[i * 3] = resized.data[i * 4]         // R
-    tensor[i * 3 + 1] = resized.data[i * 4 + 1] // G
-    tensor[i * 3 + 2] = resized.data[i * 4 + 2] // B
-  }
-
-  return tensor
-}
-
-/**
- * Convert a float mask from the SAM decoder to a binary ImageData
- * at the target resolution. The mask can be any size (depends on orig_im_size).
- */
-function postprocessMask(
-  maskFloat: Float32Array,
-  maskWidth: number,
-  maskHeight: number,
-  targetWidth: number,
-  targetHeight: number,
-): ImageData {
-  const out = createImageData(targetWidth, targetHeight)
-
-  for (let y = 0; y < targetHeight; y++) {
-    for (let x = 0; x < targetWidth; x++) {
-      const srcX = Math.floor((x / targetWidth) * maskWidth)
-      const srcY = Math.floor((y / targetHeight) * maskHeight)
-      const srcIdx = srcY * maskWidth + srcX
-
-      // Threshold at 0 (SAM outputs logits; positive = foreground)
-      const isForeground = maskFloat[srcIdx] > 0
-      const idx = (y * targetWidth + x) * 4
-      out.data[idx] = isForeground ? 255 : 0
-      out.data[idx + 1] = isForeground ? 255 : 0
-      out.data[idx + 2] = isForeground ? 255 : 0
-      out.data[idx + 3] = isForeground ? 255 : 0
-    }
-  }
-
-  return out
-}
-
 /**
  * Get the tight bounding box of non-transparent pixels in a mask.
  */
@@ -781,4 +386,4 @@ function getMaskBbox(
   return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }
 }
 
-export { preprocessImage, postprocessMask, getMaskBbox, SAM_INPUT_SIZE, KEYPOINT_TO_PART, computePartRegions }
+export { getMaskBbox, KEYPOINT_TO_PART, computePartRegions }

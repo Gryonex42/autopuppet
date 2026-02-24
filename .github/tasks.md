@@ -26,9 +26,9 @@
 - `src/renderer/engine/physics.test.ts` - Unit tests for physics chain math and constraint satisfaction
 - `src/renderer/ai/keypoint.ts` - Keypoint detection via MediaPipe JS + heuristic fallback
 - `src/renderer/ai/keypoint.test.ts` - Tests for keypoint detection and heuristic estimation
-- `src/renderer/ai/segmenter.ts` - SAM ONNX part segmentation, overlap resolution, mask export
+- `src/renderer/ai/segmenter.ts` - Keypoint-geometry part segmentation, mask export (SAM removed)
 - `src/renderer/ai/segmenter.test.ts` - Tests for segmentation pipeline and mask quality
-- `src/main/sam-ipc.ts` - IPC handlers for ONNX inference and image export (runs in main process)
+- `src/main/sam-ipc.ts` - IPC handlers for image export (runs in main process)
 - `src/renderer/ai/meshGen.ts` - Contour extraction, Poisson sampling, Delaunay triangulation, UV mapping
 - `src/renderer/ai/meshGen.test.ts` - Tests for mesh generation (degenerate tri checks, vertex counts)
 - `src/renderer/ai/autoRig.ts` - Orchestrator: rules engine, hierarchy builder, keyframe generator
@@ -182,6 +182,54 @@
   - [x] 13.2 Listen to `rigLoaded` event on EventBus → call `renderer.loadRig()` with the new rig data, display the character.
   - [x] 13.3 Listen to `paramChanged` event on EventBus → call `renderer.setParameter()` to update deformations in real-time.
   - [x] 13.4 Handle canvas resize: use `ResizeObserver` on the container div, call `renderer.resize()` to update PIXI viewport dimensions when the panel is resized.
+
+- [x] 13A Remove SAM Code & Assets
+  - [x] 13A.1 Remove SAM-related functions from `segmenter.ts`: `loadSAMModel`, `encodeImage`, `segmentWithPrompt`, `segmentCharacter`, `preprocessImage`, `postprocessMask`. Keep `segmentByKeypoints`, `computePartRegions`, `exportPartTextures`, `getMaskBbox`, and related geometry-based code.
+  - [x] 13A.2 Remove `src/main/sam-worker.ts` (child process worker for onnxruntime-node). Remove SAM IPC handlers from `sam-ipc.ts` (`sam:loadModel`, `sam:encode`, `sam:decode`, `sam:unloadModel`) — keep `image:writeRgbaPng` handler.
+  - [x] 13A.3 Remove SAM IPC channels from `src/preload/index.ts` and `src/renderer/env.d.ts`. Keep the `image:writeRgbaPng` channel.
+  - [x] 13A.4 Delete SAM ONNX model files (`models/sam_vit_b_01ec64.encoder.onnx`, `models/sam_vit_b_01ec64.decoder.onnx`). Delete `public/ort-wasm-simd-threaded.jsep.mjs`.
+  - [x] 13A.5 Uninstall `onnxruntime-node` and `onnxruntime-web` from `package.json`.
+  - [x] 13A.6 Update `segmenter.test.ts` — remove any tests that reference SAM functions (`preprocessImage`, `postprocessMask`, `resolveOverlaps`). Keep tests for geometry segmentation and `getMaskBbox`.
+  - [x] 13A.7 Update `models/README.md` — remove SAM download instructions. Keep MediaPipe model instructions.
+  - [x] 13A.8 Run full test suite, verify all tests pass. Commit.
+
+- [ ] 13B LaMa Inpainting for Occluded Regions
+  - [ ] 13B.1 Research LaMa (Large Mask Inpainting) ONNX availability. Find or export a LaMa model to ONNX format (~50MB). Add download instructions to `models/README.md`.
+  - [ ] 13B.2 Create an inpainting worker (`src/main/inpaint-worker.ts`) using `onnxruntime-node` in a forked child process. Accept an image (RGBA) and a binary mask (region to inpaint), run LaMa inference, return the inpainted image.
+  - [ ] 13B.3 Add IPC handlers in `sam-ipc.ts` (or a new `inpaint-ipc.ts`): `inpaint:loadModel`, `inpaint:run`, `inpaint:unloadModel`. Expose in preload and `env.d.ts`.
+  - [ ] 13B.4 Modify `exportPartTextures` in `segmenter.ts`: after extracting each part's pixels from the source image, inpaint the hole left behind on a running "base layer" copy. This way, parts that are drawn underneath (lower z-order) show plausible content where higher-order parts overlap them, instead of blank/skin-colored patches.
+  - [ ] 13B.5 Add a fallback for when the LaMa model isn't available — use simple colour-fill (sample border pixels of the hole) so the pipeline still works without the model, just at lower quality.
+  - [ ] 13B.6 Write tests: verify inpainting worker loads model and returns an image of correct dimensions. Verify fallback produces a filled region when model is absent. Verify the pipeline end-to-end produces parts with no transparent holes in lower layers.
+  - [ ] 13B.7 Run full test suite, verify all tests pass. Commit.
+
+- [ ] 13C Anime-Specific Segmentation (AnimeSeg)
+  - [ ] 13C.1 Research anime segmentation models: AnimeSeg, illustration2vec segmentation head, or similar. These are trained on anime/illustration styles and understand stylized features (large eyes, sharp hair spikes). Find pre-trained weights and assess ONNX export feasibility.
+  - [ ] 13C.2 Export or download the chosen model to ONNX format. Add to `models/README.md` with download instructions and expected file size.
+  - [ ] 13C.3 Create a segmentation worker (`src/main/animeseg-worker.ts`) using `onnxruntime-node` in a forked child process. Accept an image, run inference, return semantic part masks (per-pixel class labels: face, eyes, mouth, hair, body, arms, etc.).
+  - [ ] 13C.4 Add IPC handlers: `animeseg:loadModel`, `animeseg:run`, `animeseg:unloadModel`. Expose in preload and `env.d.ts`.
+  - [ ] 13C.5 Integrate into `segmenter.ts`: add `segmentByAnimeSeg()` that calls the worker and converts the semantic label map into per-part binary masks (same `Map<string, ImageData>` format as `segmentByKeypoints`). Fall back to `segmentByKeypoints` if the model isn't available.
+  - [ ] 13C.6 Update `autoRig.ts` to prefer AnimeSeg when the model is present, falling back to geometry-based segmentation.
+  - [ ] 13C.7 Write tests: verify AnimeSeg masks cover expected regions, verify fallback to geometry works, verify output mask format matches pipeline expectations.
+  - [ ] 13C.8 Run full test suite, verify all tests pass. Commit.
+
+- [ ] 13D Layered Image Decomposition (LayerDiffuse)
+  - [ ] 13D.1 Research LayerDiffuse and related layered decomposition models. These take a flat image and synthesise plausible content behind occluding parts — e.g., generating face skin underneath the eyes. Assess model size, runtime requirements, and ONNX/WASM feasibility.
+  - [ ] 13D.2 If feasible: export or download the model to ONNX. If not feasible for local inference (too large, requires diffusion steps): document findings and limitations in `models/README.md`, mark task as research-only.
+  - [ ] 13D.3 Create a decomposition worker (`src/main/layerdecomp-worker.ts`) using `onnxruntime-node`. Accept a flat character image + part masks, return per-part RGBA images with synthesised content behind each part (complete layers, not just the visible pixels).
+  - [ ] 13D.4 Add IPC handlers: `layerdecomp:loadModel`, `layerdecomp:run`, `layerdecomp:unloadModel`. Expose in preload and `env.d.ts`.
+  - [ ] 13D.5 Integrate into the pipeline as an alternative to inpainting (13B): instead of cutting parts then inpainting holes, use decomposition to get complete layers directly. Can run after segmentation masks are computed.
+  - [ ] 13D.6 Write tests: verify decomposed layers have no transparent gaps in overlapping regions, verify layer dimensions match source image, verify fallback to inpainting or raw extraction.
+  - [ ] 13D.7 Run full test suite, verify all tests pass. Commit.
+
+- [ ] 13E Pose-Guided Character Decomposition (CutMat)
+  - [ ] 13E.1 Research CutMat and similar pose-guided character decomposition models. These produce semantic parts with soft matting (alpha gradients at edges) rather than hard binary masks, and are trained on character data. Assess ONNX export feasibility and model size.
+  - [ ] 13E.2 Export or download the chosen model to ONNX. Add to `models/README.md` with download instructions.
+  - [ ] 13E.3 Create a matting worker (`src/main/cutmat-worker.ts`) using `onnxruntime-node`. Accept a character image + optional pose keypoints, return per-part RGBA images with soft alpha edges.
+  - [ ] 13E.4 Add IPC handlers: `cutmat:loadModel`, `cutmat:run`, `cutmat:unloadModel`. Expose in preload and `env.d.ts`.
+  - [ ] 13E.5 Integrate into `segmenter.ts`: add `segmentByCutMat()` that calls the worker and returns `Map<string, ImageData>` masks with soft alpha (0–255 range, not just 0/255). Update `exportPartTextures` to preserve soft alpha in output PNGs.
+  - [ ] 13E.6 Update mesh generation to handle soft-alpha masks: use a configurable alpha threshold in `extractContour` and `sampleInterior` to define the boundary, while preserving the full alpha gradient in the exported texture.
+  - [ ] 13E.7 Write tests: verify soft-alpha masks have gradient edges (not all 0/255), verify mesh generation handles soft masks, verify fallback to geometry segmentation.
+  - [ ] 13E.8 Run full test suite, verify all tests pass. Commit.
 
 - [ ] 14.0 User Interface — Parameter Panel
   - [ ] 14.1 Create `src/renderer/ui/paramPanel.ts`. Implement `initParamPanel(container: HTMLElement, eventBus: EventBus): void`.
