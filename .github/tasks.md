@@ -161,13 +161,13 @@
   - [x] 10.8 Implement `autoRig(imagePath: string): Promise<Rig>` — the top-level orchestrator. Calls: detectKeypoints → segmentCharacter → exportPartTextures → generateMesh (per part) → buildHierarchy → applyRules → generateKeyframes → addPhysics → generateIdle → assembles and returns the complete Rig object.
   - [x] 10.9 Write `src/renderer/ai/autoRig.test.ts` — end-to-end test: run `autoRig` on `test/fixtures/test-character.png`, verify output rig has all expected parameters, all parts have meshes, all deformer origins are within part bounding boxes, idle animation clip has correct structure.
 
-- [ ] 11.0 Physics Simulation
-  - [ ] 11.1 Create `src/renderer/engine/physics.ts`. Implement the `PhysicsChain` class as specified in the PRD: constructor takes anchor, length, segments, damping, gravity. Stores points and oldPoints as Float64Arrays.
-  - [ ] 11.2 Implement `PhysicsChain.update(dt, anchorPos)` — pin first point to anchor, Verlet integration for remaining points (velocity = current - old, apply damping, add gravity), then satisfy distance constraints (5 iterations of constraint relaxation).
-  - [ ] 11.3 Implement `PhysicsChain.constrain(i, j)` — standard Verlet distance constraint: compute current distance between points i and j, compare with rest distance, push/pull points equally to satisfy constraint.
-  - [ ] 11.4 Implement `PhysicsChain.getAngle()` — returns `Math.atan2(dx, dy)` between first and last point for parameter binding.
-  - [ ] 11.5 Implement `PhysicsEngine` class that manages multiple `PhysicsChain` instances. Method `step(dt, paramValues)`: get anchor positions from current rig deformation state, update all chains, write resulting angles back to the parameter map. This creates the head-movement → hair-swings feedback loop.
-  - [ ] 11.6 Write `src/renderer/engine/physics.test.ts` — tests: a chain with gravity should fall downward over multiple steps; a chain at rest should maintain its rest length; getAngle returns 0 for a vertical chain; damping reduces oscillation amplitude over time.
+- [x] 11.0 Physics Simulation
+  - [x] 11.1 Create `src/renderer/engine/physics.ts`. Implement the `PhysicsChain` class as specified in the PRD: constructor takes anchor, length, segments, damping, gravity. Stores points and oldPoints as Float64Arrays.
+  - [x] 11.2 Implement `PhysicsChain.update(dt, anchorPos)` — pin first point to anchor, Verlet integration for remaining points (velocity = current - old, apply damping, add gravity), then satisfy distance constraints (5 iterations of constraint relaxation).
+  - [x] 11.3 Implement `PhysicsChain.constrain(i, j)` — standard Verlet distance constraint: compute current distance between points i and j, compare with rest distance, push/pull points equally to satisfy constraint.
+  - [x] 11.4 Implement `PhysicsChain.getAngle()` — returns `Math.atan2(dx, dy)` between first and last point for parameter binding.
+  - [x] 11.5 Implement `PhysicsEngine` class that manages multiple `PhysicsChain` instances. Method `step(dt, paramValues)`: get anchor positions from current rig deformation state, update all chains, write resulting angles back to the parameter map. This creates the head-movement → hair-swings feedback loop.
+  - [x] 11.6 Write `src/renderer/engine/physics.test.ts` — tests: a chain with gravity should fall downward over multiple steps; a chain at rest should maintain its rest length; getAngle returns 0 for a vertical chain; damping reduces oscillation amplitude over time.
 
 - [ ] 12.0 User Interface — Layout Shell
   - [ ] 12.1 Create `src/renderer/ui/app.ts`. Implement `initApp(container: HTMLElement, eventBus: EventBus): void` — creates the main layout DOM structure using CSS Grid. Create `<div>` elements for each panel area: part-tree, viewport, param-panel, timeline, and a toolbar/menu area.
