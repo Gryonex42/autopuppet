@@ -188,3 +188,46 @@ export class WarpDeformer implements DeformerInstance {
     return out
   }
 }
+
+// --- RotateDeformer ---
+
+const DEG_TO_RAD = Math.PI / 180
+
+export class RotateDeformer implements DeformerInstance {
+  readonly originX: number
+  readonly originY: number
+  readonly childrenFollow: boolean
+
+  constructor(origin: [number, number], childrenFollow: boolean) {
+    this.originX = origin[0]
+    this.originY = origin[1]
+    this.childrenFollow = childrenFollow
+  }
+
+  apply(vertices: Float32Array, paramValue: number): Float32Array {
+    const theta = paramValue * DEG_TO_RAD
+    const cos = Math.cos(theta)
+    const sin = Math.sin(theta)
+    const out = new Float32Array(vertices.length)
+
+    for (let i = 0; i < vertices.length; i += 2) {
+      const dx = vertices[i] - this.originX
+      const dy = vertices[i + 1] - this.originY
+      out[i] = this.originX + dx * cos - dy * sin
+      out[i + 1] = this.originY + dx * sin + dy * cos
+    }
+
+    return out
+  }
+
+  /** Returns the rotation transform for applying to child parts when childrenFollow is true. */
+  getTransform(paramValue: number): { cos: number; sin: number; originX: number; originY: number } {
+    const theta = paramValue * DEG_TO_RAD
+    return {
+      cos: Math.cos(theta),
+      sin: Math.sin(theta),
+      originX: this.originX,
+      originY: this.originY,
+    }
+  }
+}
