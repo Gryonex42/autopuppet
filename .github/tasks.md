@@ -86,13 +86,13 @@
   - [x] 2.6 Create `test/fixtures/test-rig.json` — a hand-crafted valid rig file with at least 2 parts (e.g., a face and an eye), 1 warp deformer, 1 rotate deformer, 2 parameters, and 1 physics entry.
   - [x] 2.7 Write `src/renderer/engine/rig.test.ts` — tests: valid JSON parses successfully, invalid JSON (missing field) throws, mismatched vertex/UV count throws, out-of-range triangle index throws, round-trip (load → save → load) produces identical output.
 
-- [ ] 3.0 Deformation Engine
+- [x] 3.0 Deformation Engine
   - [x] 3.1 Create `src/renderer/engine/deformer.ts`. Define a `Deformer` interface with method `apply(vertices: Float32Array, paramValue: number): Float32Array`.
   - [x] 3.2 Implement `WarpDeformer` class: constructor takes grid size (e.g., 4×4) and part bounding box. Stores control points as a flat Float32Array. The `apply` method: for a param value `t`, compute control point offsets based on the warp mode, then for each vertex find containing grid cell and bilinear-interpolate the offset.
   - [x] 3.3 Implement warp modes as pure functions: `squeezeCenter(grid, t)` — moves top/bottom rows toward center; `stretchBottom(grid, t)` — moves bottom row down; `curveEndsUp(grid, t)` — moves corner points up; `scaleY(grid, t)` — scales all y-offsets by `(1 + t * 0.02)`. Each returns a modified copy of the control point grid.
   - [x] 3.4 Implement `RotateDeformer` class: constructor takes origin point `[x, y]`. The `apply` method: for param value `θ` (degrees), rotate each vertex around origin using 2D rotation matrix. Include a `childrenFollow` flag that, when true, outputs the transform to be applied to child parts.
   - [x] 3.5 Implement `createDeformer(config: Deformer, partBbox: BBox): DeformerInstance` factory — reads the deformer config from the rig JSON and returns the appropriate WarpDeformer or RotateDeformer instance.
-  - [ ] 3.6 Write `src/renderer/engine/deformer.test.ts` — tests: RotateDeformer with 90° rotates vertex (1,0) to (0,1) around origin (0,0); WarpDeformer squeezeCenter with t=1 moves top/bottom rows inward by expected amount; identity (t=0) returns original vertices unchanged; all warp modes produce expected output for known inputs.
+  - [x] 3.6 Write `src/renderer/engine/deformer.test.ts` — tests: RotateDeformer with 90° rotates vertex (1,0) to (0,1) around origin (0,0); WarpDeformer squeezeCenter with t=1 moves top/bottom rows inward by expected amount; identity (t=0) returns original vertices unchanged; all warp modes produce expected output for known inputs.
 
 - [ ] 4.0 PixiJS Renderer
   - [ ] 4.1 Create `src/renderer/engine/renderer.ts`. Implement `RigRenderer` class that takes a container DOM element. On init, create a `PIXI.Application` and mount it to the container.
