@@ -169,12 +169,12 @@
   - [x] 11.5 Implement `PhysicsEngine` class that manages multiple `PhysicsChain` instances. Method `step(dt, paramValues)`: get anchor positions from current rig deformation state, update all chains, write resulting angles back to the parameter map. This creates the head-movement → hair-swings feedback loop.
   - [x] 11.6 Write `src/renderer/engine/physics.test.ts` — tests: a chain with gravity should fall downward over multiple steps; a chain at rest should maintain its rest length; getAngle returns 0 for a vertical chain; damping reduces oscillation amplitude over time.
 
-- [ ] 12.0 User Interface — Layout Shell
-  - [ ] 12.1 Create `src/renderer/ui/app.ts`. Implement `initApp(container: HTMLElement, eventBus: EventBus): void` — creates the main layout DOM structure using CSS Grid. Create `<div>` elements for each panel area: part-tree, viewport, param-panel, timeline, and a toolbar/menu area.
-  - [ ] 12.2 Implement resizable panels: attach pointer event listeners to panel borders. On drag, update `flex-basis` or `grid-template-columns`/`grid-template-rows` CSS values. Store panel sizes in localStorage for persistence.
-  - [ ] 12.3 Add a top toolbar row with buttons: "Open Image" (triggers IPC file open), "Auto Rig" (triggers the auto-rig pipeline), "Save Rig", "Play Idle", "Export". Style with basic CSS.
-  - [ ] 12.4 Wire the "Open Image" button: on click, call `window.api.openFile({ filters: [{ name: 'Images', extensions: ['png'] }] })`, then load the selected image into the viewport as a preview.
-  - [ ] 12.5 Wire the "Auto Rig" button: on click, show a loading indicator, call `autoRig(imagePath)`, on completion emit `rigLoaded` event with the rig, clear loading indicator. Handle errors with an alert.
+- [x] 12.0 User Interface — Layout Shell
+  - [x] 12.1 Create `src/renderer/ui/app.ts`. Implement `initApp(container: HTMLElement, eventBus: EventBus): void` — creates the main layout DOM structure using CSS Grid. Create `<div>` elements for each panel area: part-tree, viewport, param-panel, timeline, and a toolbar/menu area.
+  - [x] 12.2 Implement resizable panels: attach pointer event listeners to panel borders. On drag, update `flex-basis` or `grid-template-columns`/`grid-template-rows` CSS values. Store panel sizes in localStorage for persistence.
+  - [x] 12.3 Add a top toolbar row with buttons: "Open Image" (triggers IPC file open), "Auto Rig" (triggers the auto-rig pipeline), "Save Rig", "Play Idle", "Export". Style with basic CSS.
+  - [x] 12.4 Wire the "Open Image" button: on click, call `window.api.openFile({ filters: [{ name: 'Images', extensions: ['png'] }] })`, then load the selected image into the viewport as a preview.
+  - [x] 12.5 Wire the "Auto Rig" button: on click, show a loading indicator, call `autoRig(imagePath)`, on completion emit `rigLoaded` event with the rig, clear loading indicator. Handle errors with an alert.
 
 - [ ] 13.0 User Interface — Viewport Panel
   - [ ] 13.1 Create `src/renderer/ui/viewport.ts`. Implement `initViewport(container: HTMLElement, eventBus: EventBus): RigRenderer` — create a `<canvas>` element, append to container, instantiate PIXI.Application mounted to the canvas, return the RigRenderer instance from task 4.

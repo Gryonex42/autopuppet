@@ -156,6 +156,15 @@ export class RigRenderer {
     this.app?.resize()
   }
 
+  /** Load a single image as a preview sprite (no rig). */
+  async loadImagePreview(imagePath: string): Promise<void> {
+    this.clear()
+    const { Sprite } = await import('pixi.js')
+    const texture = await Assets.load(imagePath)
+    const sprite = new Sprite(texture)
+    this.root.addChild(sprite)
+  }
+
   /** Remove all parts and reset state. */
   clear(): void {
     for (const state of this.parts.values()) {
