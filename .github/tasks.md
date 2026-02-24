@@ -150,7 +150,7 @@
   - [x] 9.8 Implement `generateMesh(mask: ImageData, textureBbox: BBox): Mesh` — orchestrator that calls extractContour → simplifyContour → sampleInterior → triangulate → computeUVs → validateMesh. Adjusts density automatically if validation fails (too few/many vertices).
   - [x] 9.9 Write `src/renderer/ai/meshGen.test.ts` — tests: triangulate a circle mask (200×200), verify no degenerate triangles, vertex count within range; triangulate a very small mask, verify minimum vertex count is enforced; verify UVs are in [0,1] range for all vertices.
 
-- [ ] 10.0 Auto-Rigging Rules Engine
+- [x] 10.0 Auto-Rigging Rules Engine
   - [x] 10.1 Create `src/renderer/ai/autoRig.ts`. Define `RigRule` interface with fields: `affects` (part IDs), `deformer` type, `range`, `origin` (keypoint reference), `warpAxis`, `warpMode`, `childrenFollow`, `autoAnimate`.
   - [x] 10.2 Implement the `RIG_RULES` constant as defined in the PRD — all 10 rules: `head_angle_x`, `head_angle_y`, `eye_open_left`, `eye_open_right`, `mouth_open`, `mouth_smile`, `body_angle_x`, `arm_L_angle`, `arm_R_angle`, `breathing`.
   - [x] 10.3 Implement `buildHierarchy(partNames: string[], keypoints: Record<string, [number, number]>): PartTree` — create a tree structure: root → head (face, eye_left, eye_right, mouth, hair_*) + body (arm_upper_L, arm_lower_L, arm_upper_R, arm_lower_R). Assign parent-child relationships based on part name patterns and spatial proximity to keypoints.
@@ -159,7 +159,7 @@
   - [x] 10.6 Implement `addPhysics(partNames: string[], keypoints: Record<string, [number, number]>): PhysicsConfig[]` — detect parts whose names contain "hair" or "cloth", create pendulum physics configs with appropriate anchor points (derived from keypoints), damping (0.9), and parameter bindings.
   - [x] 10.7 Implement `generateIdle(parameters: Parameter[]): AnimationClip` — generate an idle animation clip with: breathing (sine wave, 3s period), gentle head sway (sine, 6s period, small amplitude), and auto-blink (every 3–5 seconds, 0.15s duration).
   - [x] 10.8 Implement `autoRig(imagePath: string): Promise<Rig>` — the top-level orchestrator. Calls: detectKeypoints → segmentCharacter → exportPartTextures → generateMesh (per part) → buildHierarchy → applyRules → generateKeyframes → addPhysics → generateIdle → assembles and returns the complete Rig object.
-  - [ ] 10.9 Write `src/renderer/ai/autoRig.test.ts` — end-to-end test: run `autoRig` on `test/fixtures/test-character.png`, verify output rig has all expected parameters, all parts have meshes, all deformer origins are within part bounding boxes, idle animation clip has correct structure.
+  - [x] 10.9 Write `src/renderer/ai/autoRig.test.ts` — end-to-end test: run `autoRig` on `test/fixtures/test-character.png`, verify output rig has all expected parameters, all parts have meshes, all deformer origins are within part bounding boxes, idle animation clip has correct structure.
 
 - [ ] 11.0 Physics Simulation
   - [ ] 11.1 Create `src/renderer/engine/physics.ts`. Implement the `PhysicsChain` class as specified in the PRD: constructor takes anchor, length, segments, damping, gravity. Stores points and oldPoints as Float64Arrays.
