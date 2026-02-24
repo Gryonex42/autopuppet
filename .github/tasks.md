@@ -44,6 +44,7 @@
 - `src/renderer/ui/partTree.ts` - Part hierarchy tree (nested DOM lists, visibility toggle, z-order drag)
 - `src/renderer/ui/timeline.ts` - Canvas-drawn animation timeline, keyframe editing, playback controls
 - `src/renderer/ui/timeline.test.ts` - Tests for timeline keyframe interpolation and playback logic
+- `src/renderer/ui/viewport.ts` - PixiJS canvas mount, EventBus wiring for rig/param events, ResizeObserver
 - `src/renderer/animation/player.ts` - AnimationPlayer and AnimationClip evaluation, easing functions
 - `src/renderer/animation/player.test.ts` - Tests for animation interpolation and easing
 - `src/renderer/animation/presets.ts` - Pre-built animation generators (idle, blink, talk, nod, shake)
@@ -176,11 +177,11 @@
   - [x] 12.4 Wire the "Open Image" button: on click, call `window.api.openFile({ filters: [{ name: 'Images', extensions: ['png'] }] })`, then load the selected image into the viewport as a preview.
   - [x] 12.5 Wire the "Auto Rig" button: on click, show a loading indicator, call `autoRig(imagePath)`, on completion emit `rigLoaded` event with the rig, clear loading indicator. Handle errors with an alert.
 
-- [ ] 13.0 User Interface — Viewport Panel
-  - [ ] 13.1 Create `src/renderer/ui/viewport.ts`. Implement `initViewport(container: HTMLElement, eventBus: EventBus): RigRenderer` — create a `<canvas>` element, append to container, instantiate PIXI.Application mounted to the canvas, return the RigRenderer instance from task 4.
-  - [ ] 13.2 Listen to `rigLoaded` event on EventBus → call `renderer.loadRig()` with the new rig data, display the character.
-  - [ ] 13.3 Listen to `paramChanged` event on EventBus → call `renderer.setParameter()` to update deformations in real-time.
-  - [ ] 13.4 Handle canvas resize: use `ResizeObserver` on the container div, call `renderer.resize()` to update PIXI viewport dimensions when the panel is resized.
+- [x] 13.0 User Interface — Viewport Panel
+  - [x] 13.1 Create `src/renderer/ui/viewport.ts`. Implement `initViewport(container: HTMLElement, eventBus: EventBus): RigRenderer` — create a `<canvas>` element, append to container, instantiate PIXI.Application mounted to the canvas, return the RigRenderer instance from task 4.
+  - [x] 13.2 Listen to `rigLoaded` event on EventBus → call `renderer.loadRig()` with the new rig data, display the character.
+  - [x] 13.3 Listen to `paramChanged` event on EventBus → call `renderer.setParameter()` to update deformations in real-time.
+  - [x] 13.4 Handle canvas resize: use `ResizeObserver` on the container div, call `renderer.resize()` to update PIXI viewport dimensions when the panel is resized.
 
 - [ ] 14.0 User Interface — Parameter Panel
   - [ ] 14.1 Create `src/renderer/ui/paramPanel.ts`. Implement `initParamPanel(container: HTMLElement, eventBus: EventBus): void`.

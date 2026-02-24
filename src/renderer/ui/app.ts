@@ -9,6 +9,7 @@ import { EventBus, AppState, type AppEvents } from './events'
 import { RigRenderer } from '../engine/renderer'
 import { loadRig } from '../engine/rig'
 import { autoRig } from '../ai/autoRig'
+import { initViewport } from './viewport'
 
 // --- Panel resize constants ---
 
@@ -72,9 +73,10 @@ export async function initApp(container: HTMLElement): Promise<{
   loadingIndicator.style.color = '#ffcc00'
   toolbar.appendChild(loadingIndicator)
 
-  // --- Init renderer ---
-  const renderer = new RigRenderer(viewport)
-  await renderer.init()
+  // --- Init viewport (renderer + event wiring + resize handling) ---
+  const renderer = await initViewport(viewport, bus, () =>
+    currentImagePath ? currentImagePath.replace(/\/[^/]+$/, '') + '/parts' : '',
+  )
 
   // --- Resizable panels ---
   setupResizablePanels(container, partTree, paramPanel, timeline)
@@ -144,21 +146,6 @@ export async function initApp(container: HTMLElement): Promise<{
   // Export (placeholder — wired fully in Task 18)
   buttons.get('btn-export')!.addEventListener('click', () => {
     console.log('Export — not yet implemented (Task 18)')
-  })
-
-  // --- EventBus wiring ---
-
-  // When a rig is loaded, push it to the renderer
-  bus.on('rigLoaded', async ({ rig }) => {
-    const textureDir = currentImagePath
-      ? currentImagePath.replace(/\/[^/]+$/, '') + '/parts'
-      : ''
-    await renderer.loadRig(rig, textureDir)
-  })
-
-  // When a parameter changes, update the renderer
-  bus.on('paramChanged', ({ paramId, value }) => {
-    renderer.setParameter(paramId, value)
   })
 
   // Forward part selection from renderer to state
