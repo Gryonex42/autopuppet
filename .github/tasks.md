@@ -28,6 +28,7 @@
 - `src/renderer/ai/keypoint.test.ts` - Tests for keypoint detection and heuristic estimation
 - `src/renderer/ai/segmenter.ts` - SAM ONNX part segmentation, overlap resolution, mask export
 - `src/renderer/ai/segmenter.test.ts` - Tests for segmentation pipeline and mask quality
+- `src/main/sam-ipc.ts` - IPC handlers for ONNX inference and image export (runs in main process)
 - `src/renderer/ai/meshGen.ts` - Contour extraction, Poisson sampling, Delaunay triangulation, UV mapping
 - `src/renderer/ai/meshGen.test.ts` - Tests for mesh generation (degenerate tri checks, vertex counts)
 - `src/renderer/ai/autoRig.ts` - Orchestrator: rules engine, hierarchy builder, keyframe generator
@@ -125,16 +126,16 @@
   - [x] 7.6 Create `models/README.md` with download instructions for MediaPipe WASM model files and where to place them in the project.
   - [x] 7.7 Write `src/renderer/ai/keypoint.test.ts` — test heuristic keypoint estimation: given a known bounding box, verify face center, eye positions, body center are at expected proportional offsets. Test fallback triggers when MediaPipe returns empty results.
 
-- [ ] 8.0 SAM ONNX Part Segmentation
-  - [ ] 8.1 Install `onnxruntime-node`. Create `src/renderer/ai/segmenter.ts`.
-  - [ ] 8.2 Add download instructions to `models/README.md` for SAM ViT-B ONNX models (encoder + decoder). Link to HuggingFace pre-exported models.
-  - [ ] 8.3 Implement `loadSAMModel(encoderPath: string, decoderPath: string): Promise<SAMSession>` — create ONNX InferenceSessions for both encoder and decoder. Return a session object that caches the encoder embedding.
-  - [ ] 8.4 Implement `encodeImage(session: SAMSession, imageData: ImageData): Promise<Float32Array>` — preprocess image (resize to 1024×1024, normalize), run through encoder ONNX session, return the image embedding tensor.
-  - [ ] 8.5 Implement `segmentWithPrompt(session: SAMSession, embedding: Float32Array, points: [number, number][], labels: number[], box?: [number, number, number, number]): Promise<ImageData>` — create decoder input tensors (point coords, point labels, optional box), run decoder ONNX session, extract highest-confidence mask from output, return as binary ImageData.
-  - [ ] 8.6 Implement `segmentCharacter(imagePath: string, keypoints: Record<string, [number, number]>): Promise<Map<string, ImageData>>` — for each keypoint region (face center → face, left eye → eye_left, etc.), construct the appropriate SAM prompt and run segmentation. Return map of part name to binary mask.
-  - [ ] 8.7 Implement `resolveOverlaps(masks: Map<string, ImageData>, priorityOrder: string[]): Map<string, ImageData>` — iterate masks in priority order (eyes > mouth > face > hair > arms > body). For each pixel claimed by multiple masks, assign to the highest-priority part. Ensure no pixel is in two masks.
-  - [ ] 8.8 Implement `exportPartTextures(originalImage: ImageData, masks: Map<string, ImageData>, outputDir: string): Promise<Map<string, { path: string, offset: [number, number] }>>` — for each mask, crop the original image to the mask region using `sharp`, save as RGBA PNG with tight bounding box, record the (x, y) offset for rig positioning.
-  - [ ] 8.9 Write `src/renderer/ai/segmenter.test.ts` — test overlap resolution: given two overlapping masks with known priority, verify the higher-priority mask wins. Test that total mask coverage ≥ 95% of character alpha for a test image. Test that exported PNGs have correct dimensions matching their mask bounding boxes.
+- [x] 8.0 SAM ONNX Part Segmentation
+  - [x] 8.1 Install `onnxruntime-node`. Create `src/renderer/ai/segmenter.ts`.
+  - [x] 8.2 Add download instructions to `models/README.md` for SAM ViT-B ONNX models (encoder + decoder). Link to HuggingFace pre-exported models.
+  - [x] 8.3 Implement `loadSAMModel(encoderPath: string, decoderPath: string): Promise<SAMSession>` — create ONNX InferenceSessions for both encoder and decoder. Return a session object that caches the encoder embedding.
+  - [x] 8.4 Implement `encodeImage(session: SAMSession, imageData: ImageData): Promise<Float32Array>` — preprocess image (resize to 1024×1024, normalize), run through encoder ONNX session, return the image embedding tensor.
+  - [x] 8.5 Implement `segmentWithPrompt(session: SAMSession, embedding: Float32Array, points: [number, number][], labels: number[], box?: [number, number, number, number]): Promise<ImageData>` — create decoder input tensors (point coords, point labels, optional box), run decoder ONNX session, extract highest-confidence mask from output, return as binary ImageData.
+  - [x] 8.6 Implement `segmentCharacter(imagePath: string, keypoints: Record<string, [number, number]>): Promise<Map<string, ImageData>>` — for each keypoint region (face center → face, left eye → eye_left, etc.), construct the appropriate SAM prompt and run segmentation. Return map of part name to binary mask.
+  - [x] 8.7 Implement `resolveOverlaps(masks: Map<string, ImageData>, priorityOrder: string[]): Map<string, ImageData>` — iterate masks in priority order (eyes > mouth > face > hair > arms > body). For each pixel claimed by multiple masks, assign to the highest-priority part. Ensure no pixel is in two masks.
+  - [x] 8.8 Implement `exportPartTextures(originalImage: ImageData, masks: Map<string, ImageData>, outputDir: string): Promise<Map<string, { path: string, offset: [number, number] }>>` — for each mask, crop the original image to the mask region using `sharp`, save as RGBA PNG with tight bounding box, record the (x, y) offset for rig positioning.
+  - [x] 8.9 Write `src/renderer/ai/segmenter.test.ts` — test overlap resolution: given two overlapping masks with known priority, verify the higher-priority mask wins. Test that total mask coverage ≥ 95% of character alpha for a test image. Test that exported PNGs have correct dimensions matching their mask bounding boxes.
 
 - [ ] 9.0 Mesh Generation
   - [ ] 9.1 Install `delaunator`. Create `src/renderer/ai/meshGen.ts`.

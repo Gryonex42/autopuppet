@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, shell } from 'electron'
 import { join } from 'path'
 import { registerIpcHandlers } from './ipc'
+import { registerSamIpcHandlers } from './sam-ipc'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -112,6 +113,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerIpcHandlers()
+  registerSamIpcHandlers()
   buildMenu()
   createWindow()
 
