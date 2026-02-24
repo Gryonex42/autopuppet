@@ -538,9 +538,7 @@ export function generateIdle(parameters: Parameter[]): AnimationClip {
 
 import { detectKeypoints } from './keypoint'
 import {
-  loadSAMModel,
-  segmentCharacter,
-  resolveOverlaps,
+  segmentByKeypoints,
   exportPartTextures,
   PART_PRIORITY,
   getMaskBbox,
@@ -577,7 +575,7 @@ async function loadImageData(imagePath: string): Promise<ImageData> {
  */
 export async function autoRig(
   imagePath: string,
-  modelDir?: string,
+  _modelDir?: string,
 ): Promise<{ rig: Rig; idleClip: AnimationClip }> {
   const imageData = await loadImageData(imagePath)
   const imageDir = imagePath.replace(/\/[^/]+$/, '')
@@ -586,19 +584,11 @@ export async function autoRig(
   // 1. Detect keypoints
   const keypoints = await detectKeypoints(imageData)
 
-  // 2. Segment character into parts
-  const encoderPath = modelDir
-    ? `${modelDir}/sam_vit_b_01ec64.encoder.onnx`
-    : 'models/sam_vit_b_01ec64.encoder.onnx'
-  const decoderPath = modelDir
-    ? `${modelDir}/sam_vit_b_01ec64.decoder.onnx`
-    : 'models/sam_vit_b_01ec64.decoder.onnx'
+  // 2. Segment character into parts using keypoint geometry + alpha channel
+  // Parts overlap intentionally (Live2D style) — draw order handles compositing
+  const masks = segmentByKeypoints(imageData, keypoints)
 
-  const session = await loadSAMModel(encoderPath, decoderPath)
-  const rawMasks = await segmentCharacter(session, imageData, keypoints)
-  const masks = resolveOverlaps(rawMasks, PART_PRIORITY)
-
-  // 3. Export part textures as PNGs
+  // 3. Export part textures as PNGs (each part is its full region, no holes)
   const textureInfos = await exportPartTextures(imageData, masks, outputDir)
 
   // 4. Generate meshes per part
@@ -638,20 +628,38 @@ export async function autoRig(
   const idleClip = generateIdle(allParameters)
 
   // 9. Assemble the Rig
+  // Draw order: back-to-front, matching Live2D layering.
+  // Body at back, face on top, detail parts (eyes, mouth, nose) on top of face.
+  const DRAW_ORDER: Record<string, number> = {
+    body: 0,
+    arm_upper_left: 1,
+    arm_upper_right: 2,
+    face: 10,
+    ear_left: 11,
+    ear_right: 12,
+    nose: 20,
+    eye_left: 21,
+    eye_right: 22,
+    mouth: 23,
+    hair: 30,
+  }
+
   const parts: Part[] = []
-  let zIndex = 0
   for (const [partName, mesh] of meshes) {
     const info = textureInfos.get(partName)
     const texturePath = info ? info.path : `${outputDir}/${partName}.png`
     const partDeformers = deformers.get(partName) ?? []
     parts.push({
       id: partName,
-      zIndex: zIndex++,
+      zIndex: DRAW_ORDER[partName] ?? 15,
       texture: texturePath,
       mesh,
       deformers: partDeformers,
     })
   }
+
+  // Sort by draw order so rendering is back-to-front
+  parts.sort((a, b) => a.zIndex - b.zIndex)
 
   const rig: Rig = {
     version: '1.0',
@@ -662,13 +670,6 @@ export async function autoRig(
     parts,
     parameters: allParameters,
     physics,
-  }
-
-  // Unload SAM model to free memory
-  try {
-    await window.api.samUnloadModel(session.sessionId)
-  } catch {
-    // Non-fatal: model cleanup failure
   }
 
   return { rig, idleClip }

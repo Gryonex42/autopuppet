@@ -1,8 +1,13 @@
 /**
- * SAM ONNX Part Segmentation
+ * Part Segmentation
  *
- * Preprocessing and postprocessing run in the renderer.
- * ONNX inference runs in the main process via onnxruntime-node (IPC).
+ * Two modes:
+ * - Keypoint-geometry segmentation (default): elliptical masks derived from
+ *   inter-keypoint distances, intersected with the original alpha channel.
+ *   Fast, deterministic, works well for illustrated/anime characters.
+ * - SAM-based segmentation (optional): ONNX inference for photographic images.
+ *   Preprocessing and postprocessing run in the renderer; inference runs in
+ *   the main process via onnxruntime-node (IPC).
  */
 
 import type { KeypointMap } from './keypoint'
@@ -187,8 +192,341 @@ export async function segmentWithPrompt(
   return postprocessMask(bestMask, maskW, maskH, width, height)
 }
 
+/** Euclidean distance between two points */
+function dist(a: [number, number], b: [number, number]): number {
+  return Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+}
+
+/**
+ * Part region definition: an ellipse (cx, cy, rx, ry) that defines the mask area.
+ */
+interface PartRegion {
+  cx: number
+  cy: number
+  rx: number
+  ry: number
+}
+
+/**
+ * Compute elliptical regions for each part from keypoint geometry.
+ * All sizes scale proportionally to the character's inter-keypoint distances.
+ *
+ * Tuned for illustrated/anime characters where facial features are large
+ * relative to inter-eye distance. Uses the alpha bounding box to constrain
+ * body extent (avoids extending into transparent regions).
+ */
+function computePartRegions(
+  keypoints: KeypointMap,
+  width: number,
+  height: number,
+  alphaBbox?: { minY: number; maxY: number },
+): Map<string, PartRegion> {
+  const regions = new Map<string, PartRegion>()
+
+  const eyeL = keypoints.eye_left
+  const eyeR = keypoints.eye_right
+  const interEye = eyeL && eyeR ? dist(eyeL, eyeR) : width * 0.15
+
+  const faceCenter = keypoints.face_center
+  const mouth = keypoints.mouth_center
+  const nose = keypoints.nose_tip
+
+  // Eye-to-mouth distance is a better face scale reference than interEye alone
+  const eyeMid = eyeL && eyeR ? midpoint(eyeL, eyeR) : faceCenter
+  const eyeToMouth = eyeMid && mouth ? dist(eyeMid, mouth) : interEye * 1.7
+  // Face height ~ forehead to chin. Approximate as eye-to-mouth * 2.2
+  const faceH = eyeToMouth * 2.2
+
+  for (const [keypointName, coords] of Object.entries(keypoints)) {
+    const partName = KEYPOINT_TO_PART[keypointName]
+    if (!partName) continue
+
+    const [cx, cy] = coords
+
+    switch (partName) {
+      case 'eye_left':
+      case 'eye_right':
+        // Anime eyes are large — roughly half the inter-eye distance wide,
+        // and about 60% of that tall (more round than photographic eyes)
+        regions.set(partName, { cx, cy, rx: interEye * 0.55, ry: interEye * 0.4 })
+        break
+
+      case 'mouth':
+        // Wider than tall, but generous to capture the full lip area
+        regions.set(partName, { cx, cy, rx: interEye * 0.55, ry: interEye * 0.35 })
+        break
+
+      case 'nose': {
+        // Narrow vertically between eye line and mouth
+        const noseH = nose && mouth ? dist(nose, mouth) * 0.7 : interEye * 0.4
+        regions.set(partName, { cx, cy, rx: interEye * 0.3, ry: noseH })
+        break
+      }
+
+      case 'face':
+        // Full face ellipse — from hairline to chin, ear to ear
+        regions.set(partName, { cx, cy, rx: interEye * 1.3, ry: faceH * 0.55 })
+        break
+
+      case 'ear_left':
+      case 'ear_right':
+        regions.set(partName, { cx, cy, rx: interEye * 0.35, ry: interEye * 0.5 })
+        break
+
+      case 'body': {
+        // Body from shoulders down to the bottom of the character (not the image)
+        const sL = keypoints.shoulder_left
+        const sR = keypoints.shoulder_right
+        const shoulderW = sL && sR ? dist(sL, sR) : interEye * 3
+        const shoulderY = sL && sR ? Math.min(sL[1], sR[1]) : cy - shoulderW * 0.1
+        // Use alpha bounding box bottom if available, otherwise estimate
+        const contentBottom = alphaBbox ? alphaBbox.maxY : height * 0.9
+        const bodyH = contentBottom - shoulderY
+        const bodyCy = shoulderY + bodyH * 0.45
+        regions.set(partName, { cx, cy: bodyCy, rx: shoulderW * 0.65, ry: bodyH * 0.55 })
+        break
+      }
+
+      case 'arm_upper_left':
+      case 'arm_upper_right': {
+        // Arm from shoulder down to elbow area
+        const elbowKey = partName === 'arm_upper_left' ? 'elbow_left' : 'elbow_right'
+        const elbow = keypoints[elbowKey]
+        const armLen = elbow ? dist(coords, elbow) : interEye * 2.5
+        // Center between shoulder and elbow
+        const armCy = elbow ? (cy + elbow[1]) / 2 : cy + armLen * 0.4
+        const armCx = elbow ? (cx + elbow[0]) / 2 : cx
+        regions.set(partName, { cx: armCx, cy: armCy, rx: interEye * 0.6, ry: armLen * 0.55 })
+        break
+      }
+    }
+  }
+
+  return regions
+}
+
+/** Midpoint of two points */
+function midpoint(a: [number, number], b: [number, number]): [number, number] {
+  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+}
+
+/**
+ * Segment a character image into named parts using keypoint-derived elliptical masks.
+ * Each part gets an ellipse centered on its keypoint, sized proportionally to
+ * inter-keypoint distances, then intersected with the original alpha channel.
+ *
+ * No AI inference needed — just geometry + alpha.
+ */
+export function segmentByKeypoints(
+  imageData: ImageData,
+  keypoints: KeypointMap,
+): Map<string, ImageData> {
+  const { width, height } = imageData
+
+  // Compute alpha bounding box to constrain body/arm regions
+  let alphaMinY = height
+  let alphaMaxY = 0
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (imageData.data[(y * width + x) * 4 + 3] > 10) {
+        if (y < alphaMinY) alphaMinY = y
+        if (y > alphaMaxY) alphaMaxY = y
+      }
+    }
+  }
+  const alphaBbox = alphaMaxY > alphaMinY ? { minY: alphaMinY, maxY: alphaMaxY } : undefined
+
+  const regions = computePartRegions(keypoints, width, height, alphaBbox)
+  const masks = new Map<string, ImageData>()
+
+  console.log(`segmentByKeypoints: image ${width}x${height}, alpha y-range: ${alphaBbox ? `${alphaBbox.minY}-${alphaBbox.maxY}` : 'none'}`)
+  for (const [name, [x, y]] of Object.entries(keypoints)) {
+    console.log(`  keypoint ${name}: (${Math.round(x)}, ${Math.round(y)})`)
+  }
+  for (const [name, r] of regions) {
+    console.log(`  region ${name}: center=(${Math.round(r.cx)},${Math.round(r.cy)}) size=${Math.round(r.rx * 2)}x${Math.round(r.ry * 2)}`)
+  }
+
+  for (const [partName, region] of regions) {
+    const mask = createImageData(width, height)
+    const { cx, cy, rx, ry } = region
+
+    // Skip degenerate regions
+    if (rx < 1 || ry < 1) continue
+
+    // Only iterate over the bounding rect of the ellipse (clamped to image)
+    const startX = Math.max(0, Math.floor(cx - rx))
+    const endX = Math.min(width - 1, Math.ceil(cx + rx))
+    const startY = Math.max(0, Math.floor(cy - ry))
+    const endY = Math.min(height - 1, Math.ceil(cy + ry))
+
+    for (let y = startY; y <= endY; y++) {
+      for (let x = startX; x <= endX; x++) {
+        // Ellipse test: ((x-cx)/rx)^2 + ((y-cy)/ry)^2 <= 1
+        const dx = (x - cx) / rx
+        const dy = (y - cy) / ry
+        if (dx * dx + dy * dy > 1) continue
+
+        // Only include pixels that are visible in the original image
+        const srcAlpha = imageData.data[(y * width + x) * 4 + 3]
+        if (srcAlpha < 10) continue
+
+        const idx = (y * width + x) * 4
+        mask.data[idx] = 255
+        mask.data[idx + 1] = 255
+        mask.data[idx + 2] = 255
+        mask.data[idx + 3] = 255
+      }
+    }
+
+    masks.set(partName, mask)
+  }
+
+  return masks
+}
+
+// --- SAM-based segmentation (optional, for photographic images) ---
+
+/** Euclidean distance between two points */
+// (dist already defined above for geometry segmentation)
+
+/** Clamp a bounding box to image dimensions */
+function clampBox(
+  box: [number, number, number, number],
+  width: number,
+  height: number,
+): [number, number, number, number] {
+  return [
+    Math.max(0, box[0]),
+    Math.max(0, box[1]),
+    Math.min(width, box[2]),
+    Math.min(height, box[3]),
+  ]
+}
+
+/**
+ * Estimate a bounding box and negative points for each part based on keypoint geometry.
+ * Box sizes are derived from inter-keypoint distances so they scale with the character.
+ */
+function estimatePartPrompts(
+  keypoints: KeypointMap,
+  width: number,
+  height: number,
+): Map<string, { box: [number, number, number, number]; negPoints: [number, number][] }> {
+  const prompts = new Map<string, { box: [number, number, number, number]; negPoints: [number, number][] }>()
+
+  // Compute scale references from keypoints
+  const eyeL = keypoints.eye_left
+  const eyeR = keypoints.eye_right
+  const interEye = eyeL && eyeR ? dist(eyeL, eyeR) : width * 0.15
+  const faceCenter = keypoints.face_center
+  const mouth = keypoints.mouth_center
+  const nose = keypoints.nose_tip
+
+  // Face height estimate (face_center to mouth, doubled for forehead)
+  const faceH = faceCenter && mouth ? dist(faceCenter, mouth) * 2.5 : interEye * 2.5
+
+  for (const [keypointName, coords] of Object.entries(keypoints)) {
+    const partName = KEYPOINT_TO_PART[keypointName]
+    if (!partName) continue
+
+    const [cx, cy] = coords
+    let box: [number, number, number, number]
+    const negPoints: [number, number][] = []
+
+    switch (partName) {
+      case 'eye_left':
+      case 'eye_right': {
+        // Tight box around each eye, sized relative to inter-eye distance
+        const ew = interEye * 0.45
+        const eh = interEye * 0.3
+        box = [cx - ew, cy - eh, cx + ew, cy + eh]
+        // Negative point at the other eye and at face center
+        if (partName === 'eye_left' && eyeR) negPoints.push(eyeR)
+        if (partName === 'eye_right' && eyeL) negPoints.push(eyeL)
+        if (faceCenter) negPoints.push(faceCenter)
+        break
+      }
+
+      case 'mouth': {
+        const mw = interEye * 0.5
+        const mh = interEye * 0.35
+        box = [cx - mw, cy - mh, cx + mw, cy + mh]
+        if (nose) negPoints.push(nose)
+        if (faceCenter) negPoints.push(faceCenter)
+        break
+      }
+
+      case 'nose': {
+        const nw = interEye * 0.3
+        const nh = interEye * 0.35
+        box = [cx - nw, cy - nh, cx + nw, cy + nh]
+        if (mouth) negPoints.push(mouth)
+        if (eyeL) negPoints.push(eyeL)
+        if (eyeR) negPoints.push(eyeR)
+        break
+      }
+
+      case 'face': {
+        // Full face box from ear to ear, forehead to below chin
+        const fw = interEye * 1.4
+        box = [cx - fw, cy - faceH * 0.5, cx + fw, cy + faceH * 0.5]
+        // Negative points at body/shoulders to separate face from body
+        if (keypoints.torso_center) negPoints.push(keypoints.torso_center)
+        if (keypoints.shoulder_left) negPoints.push(keypoints.shoulder_left)
+        if (keypoints.shoulder_right) negPoints.push(keypoints.shoulder_right)
+        break
+      }
+
+      case 'ear_left':
+      case 'ear_right': {
+        const earW = interEye * 0.35
+        const earH = interEye * 0.5
+        box = [cx - earW, cy - earH, cx + earW, cy + earH]
+        if (faceCenter) negPoints.push(faceCenter)
+        break
+      }
+
+      case 'body': {
+        // Body: wide box from shoulders down
+        const sL = keypoints.shoulder_left
+        const sR = keypoints.shoulder_right
+        const shoulderW = sL && sR ? dist(sL, sR) : interEye * 3
+        const bw = shoulderW * 0.7
+        box = [cx - bw, cy - shoulderW * 0.3, cx + bw, height]
+        if (faceCenter) negPoints.push(faceCenter)
+        break
+      }
+
+      case 'arm_upper_left':
+      case 'arm_upper_right': {
+        const armW = interEye * 0.6
+        const armH = interEye * 1.5
+        box = [cx - armW, cy - armW * 0.3, cx + armW, cy + armH]
+        if (keypoints.torso_center) negPoints.push(keypoints.torso_center)
+        break
+      }
+
+      default: {
+        // Generic fallback: moderate box around the keypoint
+        const s = interEye * 0.5
+        box = [cx - s, cy - s, cx + s, cy + s]
+        break
+      }
+    }
+
+    prompts.set(partName, {
+      box: clampBox(box, width, height),
+      negPoints,
+    })
+  }
+
+  return prompts
+}
+
 /**
  * Segment a character image into named parts using keypoint-guided SAM prompts.
+ * Uses bounding boxes and negative points for precise part isolation.
  */
 export async function segmentCharacter(
   session: SAMSession,
@@ -200,13 +538,38 @@ export async function segmentCharacter(
 
   const masks = new Map<string, ImageData>()
 
+  // Estimate per-part bounding boxes and negative points from keypoint geometry
+  const partPrompts = estimatePartPrompts(keypoints, imageData.width, imageData.height)
+
   for (const [keypointName, coords] of Object.entries(keypoints)) {
     const partName = KEYPOINT_TO_PART[keypointName]
-    if (!partName) continue // skip keypoints that don't map to parts
+    if (!partName) continue
 
-    // Use the keypoint as a foreground prompt point
-    const mask = await segmentWithPrompt(session, embedding, [coords], [1])
+    const prompt = partPrompts.get(partName)
+    if (!prompt) continue
+
+    // Foreground point at the keypoint + negative points at neighboring parts
+    const points: [number, number][] = [coords, ...prompt.negPoints]
+    const labels: number[] = [1, ...prompt.negPoints.map(() => 0)]
+
+    const mask = await segmentWithPrompt(session, embedding, points, labels, prompt.box)
     masks.set(partName, mask)
+  }
+
+  // Intersect all masks with the original alpha channel — only keep pixels
+  // that are actually visible in the source image (removes white background leaks)
+  for (const [partName, mask] of masks) {
+    const data = mask.data
+    for (let i = 0; i < mask.width * mask.height; i++) {
+      const srcAlpha = imageData.data[i * 4 + 3]
+      if (srcAlpha < 10) {
+        // Transparent in original → transparent in mask
+        data[i * 4] = 0
+        data[i * 4 + 1] = 0
+        data[i * 4 + 2] = 0
+        data[i * 4 + 3] = 0
+      }
+    }
   }
 
   return masks
@@ -327,11 +690,18 @@ export async function exportPartTextures(
  *
  * The samexporter SAM encoder expects HWC layout with pixel values in [0, 255].
  * ImageNet normalization (mean/std) is baked into the ONNX graph.
+ *
+ * Transparent pixels are composited onto a white background before encoding,
+ * so SAM sees a clean separation between the character and background.
  */
 function preprocessImage(imageData: ImageData): Float32Array {
-  // Use OffscreenCanvas to resize
+  // Use OffscreenCanvas to resize, compositing onto white background
   const canvas = new OffscreenCanvas(SAM_INPUT_SIZE, SAM_INPUT_SIZE)
   const ctx = canvas.getContext('2d')!
+
+  // Fill with white first — transparent areas become white, not black
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, SAM_INPUT_SIZE, SAM_INPUT_SIZE)
 
   const srcCanvas = new OffscreenCanvas(imageData.width, imageData.height)
   const srcCtx = srcCanvas.getContext('2d')!
@@ -411,4 +781,4 @@ function getMaskBbox(
   return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }
 }
 
-export { preprocessImage, postprocessMask, getMaskBbox, SAM_INPUT_SIZE, KEYPOINT_TO_PART }
+export { preprocessImage, postprocessMask, getMaskBbox, SAM_INPUT_SIZE, KEYPOINT_TO_PART, computePartRegions }
