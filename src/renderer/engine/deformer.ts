@@ -51,20 +51,82 @@ export function computeWarpOffsets(
 
 // Warp mode stubs — real implementations in sub-task 3.3
 
-function squeezeCenter(_offsets: Float32Array, _cols: number, _rows: number, _bbox: BBox, _t: number): void {
-  // TODO: 3.3
+/**
+ * Moves the top row downward and the bottom row upward toward the vertical center.
+ * The amount is proportional to t and scales with the bbox height.
+ * Interior rows are interpolated linearly so the grid stays smooth.
+ */
+function squeezeCenter(offsets: Float32Array, cols: number, rows: number, bbox: BBox, t: number): void {
+  const maxShift = bbox.h * 0.25 // top/bottom rows can move up to 25% of height
+  for (let row = 0; row < rows; row++) {
+    // Normalised row position: 0 = top, 1 = bottom
+    const rowNorm = rows > 1 ? row / (rows - 1) : 0.5
+    // Squeeze factor: positive at top (push down), negative at bottom (push up), zero at center
+    const squeeze = (0.5 - rowNorm) * -2 // top → -1, center → 0, bottom → 1
+    // Invert: top rows get +dy (push down toward center), bottom rows get -dy (push up toward center)
+    const dy = -squeeze * maxShift * t
+    for (let col = 0; col < cols; col++) {
+      const idx = (row * cols + col) * 2
+      offsets[idx + 1] = dy
+    }
+  }
 }
 
-function stretchBottom(_offsets: Float32Array, _cols: number, _rows: number, _bbox: BBox, _t: number): void {
-  // TODO: 3.3
+/**
+ * Moves the bottom row downward. Upper rows are unaffected;
+ * rows in between are linearly interpolated for a smooth stretch.
+ */
+function stretchBottom(offsets: Float32Array, cols: number, rows: number, bbox: BBox, t: number): void {
+  const maxShift = bbox.h * 0.3 // bottom row moves up to 30% of height
+  for (let row = 0; row < rows; row++) {
+    const rowNorm = rows > 1 ? row / (rows - 1) : 0
+    // Only rows toward the bottom get shifted, linearly ramped
+    const dy = rowNorm * maxShift * t
+    for (let col = 0; col < cols; col++) {
+      const idx = (row * cols + col) * 2
+      offsets[idx + 1] = dy
+    }
+  }
 }
 
-function curveEndsUp(_offsets: Float32Array, _cols: number, _rows: number, _bbox: BBox, _t: number): void {
-  // TODO: 3.3
+/**
+ * Moves corner control points upward (negative dy), creating a concave curve.
+ * The effect is strongest at the left/right edges and tapers toward the center column.
+ * Only affects the bottom half of the grid.
+ */
+function curveEndsUp(offsets: Float32Array, cols: number, rows: number, bbox: BBox, t: number): void {
+  const maxShift = bbox.h * 0.2
+  for (let row = 0; row < rows; row++) {
+    const rowNorm = rows > 1 ? row / (rows - 1) : 0.5
+    // Only affect the bottom portion of the grid (rowNorm > 0.5)
+    const rowFactor = Math.max(0, (rowNorm - 0.5) * 2) // 0 at middle, 1 at bottom
+    for (let col = 0; col < cols; col++) {
+      const colNorm = cols > 1 ? col / (cols - 1) : 0.5
+      // Edge factor: 1 at left/right edges, 0 at center column
+      const edgeFactor = Math.abs(colNorm - 0.5) * 2 // 0 at center, 1 at edges
+      const dy = -edgeFactor * rowFactor * maxShift * t
+      const idx = (row * cols + col) * 2
+      offsets[idx + 1] = dy
+    }
+  }
 }
 
-function scaleY(_offsets: Float32Array, _cols: number, _rows: number, _bbox: BBox, _t: number): void {
-  // TODO: 3.3
+/**
+ * Scales all control points in Y around the grid's vertical center by (1 + t * 0.02).
+ * Produces a subtle breathing/scaling effect.
+ */
+function scaleY(offsets: Float32Array, cols: number, rows: number, bbox: BBox, t: number): void {
+  const centerY = bbox.y + bbox.h / 2
+  const scale = t * 0.02 // fractional scale offset
+  for (let row = 0; row < rows; row++) {
+    // Absolute Y of this grid row
+    const gridY = rows > 1 ? bbox.y + (row / (rows - 1)) * bbox.h : centerY
+    const dy = (gridY - centerY) * scale
+    for (let col = 0; col < cols; col++) {
+      const idx = (row * cols + col) * 2
+      offsets[idx + 1] = dy
+    }
+  }
 }
 
 // --- WarpDeformer ---
