@@ -91,7 +91,7 @@
   - [x] 3.2 Implement `WarpDeformer` class: constructor takes grid size (e.g., 4×4) and part bounding box. Stores control points as a flat Float32Array. The `apply` method: for a param value `t`, compute control point offsets based on the warp mode, then for each vertex find containing grid cell and bilinear-interpolate the offset.
   - [x] 3.3 Implement warp modes as pure functions: `squeezeCenter(grid, t)` — moves top/bottom rows toward center; `stretchBottom(grid, t)` — moves bottom row down; `curveEndsUp(grid, t)` — moves corner points up; `scaleY(grid, t)` — scales all y-offsets by `(1 + t * 0.02)`. Each returns a modified copy of the control point grid.
   - [x] 3.4 Implement `RotateDeformer` class: constructor takes origin point `[x, y]`. The `apply` method: for param value `θ` (degrees), rotate each vertex around origin using 2D rotation matrix. Include a `childrenFollow` flag that, when true, outputs the transform to be applied to child parts.
-  - [ ] 3.5 Implement `createDeformer(config: Deformer, partBbox: BBox): DeformerInstance` factory — reads the deformer config from the rig JSON and returns the appropriate WarpDeformer or RotateDeformer instance.
+  - [x] 3.5 Implement `createDeformer(config: Deformer, partBbox: BBox): DeformerInstance` factory — reads the deformer config from the rig JSON and returns the appropriate WarpDeformer or RotateDeformer instance.
   - [ ] 3.6 Write `src/renderer/engine/deformer.test.ts` — tests: RotateDeformer with 90° rotates vertex (1,0) to (0,1) around origin (0,0); WarpDeformer squeezeCenter with t=1 moves top/bottom rows inward by expected amount; identity (t=0) returns original vertices unchanged; all warp modes produce expected output for known inputs.
 
 - [ ] 4.0 PixiJS Renderer

@@ -231,3 +231,14 @@ export class RotateDeformer implements DeformerInstance {
     }
   }
 }
+
+// --- Factory ---
+
+export function createDeformer(config: Deformer, partBbox: BBox): DeformerInstance {
+  switch (config.type) {
+    case 'warp':
+      return new WarpDeformer(config.gridSize, config.bbox, config.mode)
+    case 'rotate':
+      return new RotateDeformer(config.origin, config.childrenFollow)
+  }
+}
