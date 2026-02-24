@@ -95,7 +95,7 @@
   - [x] 3.6 Write `src/renderer/engine/deformer.test.ts` — tests: RotateDeformer with 90° rotates vertex (1,0) to (0,1) around origin (0,0); WarpDeformer squeezeCenter with t=1 moves top/bottom rows inward by expected amount; identity (t=0) returns original vertices unchanged; all warp modes produce expected output for known inputs.
 
 - [ ] 4.0 PixiJS Renderer
-  - [ ] 4.1 Create `src/renderer/engine/renderer.ts`. Implement `RigRenderer` class that takes a container DOM element. On init, create a `PIXI.Application` and mount it to the container.
+  - [x] 4.1 Create `src/renderer/engine/renderer.ts`. Implement `RigRenderer` class that takes a container DOM element. On init, create a `PIXI.Application` and mount it to the container.
   - [ ] 4.2 Implement `loadRig(rig: Rig, textureBasePath: string): void` — for each part in the rig (sorted by zIndex), load its texture via `PIXI.Texture.from()`, create a `PIXI.Mesh` with `PIXI.MeshGeometry` from the part's vertices, UVs, and triangles, and add it to the stage.
   - [ ] 4.3 Implement `setParameter(paramId: string, value: number): void` — given a parameter change, find all deformers bound to that parameter, run their `apply()` on the affected parts' vertices, and update the PIXI.Mesh geometry buffers (call `geometry.getBuffer('aVertexPosition').update()`).
   - [ ] 4.4 Implement `setAllParameters(params: Record<string, number>): void` — batch update all parameters in a single frame. Ensure deformation order respects the part hierarchy (parent before children, apply parent transforms to children if `childrenFollow` is true).
