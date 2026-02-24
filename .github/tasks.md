@@ -33,6 +33,8 @@
 - `src/renderer/ai/meshGen.test.ts` - Tests for mesh generation (degenerate tri checks, vertex counts)
 - `src/renderer/ai/autoRig.ts` - Orchestrator: rules engine, hierarchy builder, keyframe generator
 - `src/renderer/ai/autoRig.test.ts` - Tests for auto-rig pipeline (PNG → rig JSON end-to-end)
+- `src/renderer/ai/meshGen.ts` - Contour extraction, Poisson sampling, Delaunay triangulation, UV mapping
+- `src/renderer/ai/meshGen.test.ts` - Tests for mesh generation (degenerate tri checks, vertex counts)
 - `src/renderer/ui/events.ts` - Typed EventBus class for state change propagation
 - `src/renderer/ui/events.test.ts` - Tests for EventBus subscribe/emit/unsubscribe
 - `src/renderer/env.d.ts` - Type declarations for window.api (ElectronApi) available in renderer
@@ -137,16 +139,16 @@
   - [x] 8.8 Implement `exportPartTextures(originalImage: ImageData, masks: Map<string, ImageData>, outputDir: string): Promise<Map<string, { path: string, offset: [number, number] }>>` — for each mask, crop the original image to the mask region using `sharp`, save as RGBA PNG with tight bounding box, record the (x, y) offset for rig positioning.
   - [x] 8.9 Write `src/renderer/ai/segmenter.test.ts` — test overlap resolution: given two overlapping masks with known priority, verify the higher-priority mask wins. Test that total mask coverage ≥ 95% of character alpha for a test image. Test that exported PNGs have correct dimensions matching their mask bounding boxes.
 
-- [ ] 9.0 Mesh Generation
-  - [ ] 9.1 Install `delaunator`. Create `src/renderer/ai/meshGen.ts`.
-  - [ ] 9.2 Implement `extractContour(mask: ImageData): [number, number][]` — walk the alpha boundary of the mask using marching squares to produce an ordered list of boundary points.
-  - [ ] 9.3 Implement `simplifyContour(contour: [number, number][], epsilon: number): [number, number][]` — Douglas-Peucker polyline simplification to reduce vertex count while preserving shape. The epsilon parameter controls aggressiveness.
-  - [ ] 9.4 Implement `sampleInterior(mask: ImageData, density: number): [number, number][]` — Poisson disk sampling of points inside the mask region. Apply higher density (2×) near boundaries (within N pixels of contour) and lower density in the interior.
-  - [ ] 9.5 Implement `triangulate(boundaryPts: [number, number][], interiorPts: [number, number][]): { vertices: [number, number][], triangles: [number, number, number][] }` — combine boundary and interior points, run `delaunator`, convert the half-edge output to triangle index arrays. Discard any triangles whose centroid falls outside the mask.
-  - [ ] 9.6 Implement `computeUVs(vertices: [number, number][], textureBbox: { x: number, y: number, w: number, h: number }): Float32Array` — normalize each vertex position relative to the texture bounding box to produce UV coordinates in [0, 1] range.
-  - [ ] 9.7 Implement `validateMesh(mesh: Mesh): { valid: boolean, errors: string[] }` — check: vertex count ≥ 50 and ≤ 500, no degenerate triangles (aspect ratio > threshold), all triangles inside mask bounds. Return list of specific errors if invalid.
-  - [ ] 9.8 Implement `generateMesh(mask: ImageData, textureBbox: BBox): Mesh` — orchestrator that calls extractContour → simplifyContour → sampleInterior → triangulate → computeUVs → validateMesh. Adjusts density automatically if validation fails (too few/many vertices).
-  - [ ] 9.9 Write `src/renderer/ai/meshGen.test.ts` — tests: triangulate a circle mask (200×200), verify no degenerate triangles, vertex count within range; triangulate a very small mask, verify minimum vertex count is enforced; verify UVs are in [0,1] range for all vertices.
+- [x] 9.0 Mesh Generation
+  - [x] 9.1 Install `delaunator`. Create `src/renderer/ai/meshGen.ts`.
+  - [x] 9.2 Implement `extractContour(mask: ImageData): [number, number][]` — walk the alpha boundary of the mask using marching squares to produce an ordered list of boundary points.
+  - [x] 9.3 Implement `simplifyContour(contour: [number, number][], epsilon: number): [number, number][]` — Douglas-Peucker polyline simplification to reduce vertex count while preserving shape. The epsilon parameter controls aggressiveness.
+  - [x] 9.4 Implement `sampleInterior(mask: ImageData, density: number): [number, number][]` — Poisson disk sampling of points inside the mask region. Apply higher density (2×) near boundaries (within N pixels of contour) and lower density in the interior.
+  - [x] 9.5 Implement `triangulate(boundaryPts: [number, number][], interiorPts: [number, number][]): { vertices: [number, number][], triangles: [number, number, number][] }` — combine boundary and interior points, run `delaunator`, convert the half-edge output to triangle index arrays. Discard any triangles whose centroid falls outside the mask.
+  - [x] 9.6 Implement `computeUVs(vertices: [number, number][], textureBbox: { x: number, y: number, w: number, h: number }): Float32Array` — normalize each vertex position relative to the texture bounding box to produce UV coordinates in [0, 1] range.
+  - [x] 9.7 Implement `validateMesh(mesh: Mesh): { valid: boolean, errors: string[] }` — check: vertex count ≥ 50 and ≤ 500, no degenerate triangles (aspect ratio > threshold), all triangles inside mask bounds. Return list of specific errors if invalid.
+  - [x] 9.8 Implement `generateMesh(mask: ImageData, textureBbox: BBox): Mesh` — orchestrator that calls extractContour → simplifyContour → sampleInterior → triangulate → computeUVs → validateMesh. Adjusts density automatically if validation fails (too few/many vertices).
+  - [x] 9.9 Write `src/renderer/ai/meshGen.test.ts` — tests: triangulate a circle mask (200×200), verify no degenerate triangles, vertex count within range; triangulate a very small mask, verify minimum vertex count is enforced; verify UVs are in [0,1] range for all vertices.
 
 - [ ] 10.0 Auto-Rigging Rules Engine
   - [ ] 10.1 Create `src/renderer/ai/autoRig.ts`. Define `RigRule` interface with fields: `affects` (part IDs), `deformer` type, `range`, `origin` (keypoint reference), `warpAxis`, `warpMode`, `childrenFollow`, `autoAnimate`.
